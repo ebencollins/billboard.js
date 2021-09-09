@@ -91,7 +91,7 @@ export default {
 			const domain = $$.trimXDomain(newScale.domain());
 
 			// prevent weird pre-scrolling bug where it zooms out far before beginning of chart sometimes
-			if (domain <= $$.scale.subX.domain()[0]){
+			if (domain <= $$.scale.subX.domain()[0]) {
 				domain[0] = $$.scale.subx.domain()[0];
 			}
 			const rescale = config.zoom_rescale;

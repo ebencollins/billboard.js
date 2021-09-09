@@ -22,7 +22,7 @@ export function callDone(fn, resizeAfter = false) {
 export default {
 	load(rawTargets, args): void {
 		const $$ = this;
-		const {axis, data, org, scale} = $$;
+		const {axis, data, org, scale, config} = $$;
 		const {append} = args;
 		const zoomState = {
 			domain: <any> null,
@@ -30,6 +30,10 @@ export default {
 			x: <any> null
 		};
 		let targets = rawTargets;
+		const domain = $$.scale.zoom?.domain();
+
+		// reset brush before changing anything to prevent chart from allowing broken zoom
+		config.zoom_enabled && $$.brush && $$.brush.getSelection().call($$.brush.move, null);
 
 		if (targets) {
 			// filter loading targets if needed
@@ -105,6 +109,9 @@ export default {
 
 		// Update current state chart type and elements list after redraw
 		$$.updateTypesElements();
+
+		// rezoom
+		domain && $$.api.zoom(domain);
 
 		callDone.call($$, args.done, args.resizeAfter);
 	},

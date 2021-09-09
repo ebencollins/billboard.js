@@ -761,6 +761,12 @@ export default class ChartInternal {
 
 		if (config.resize_auto) {
 			list.push(() => {
+				// reset brush then zoom back after flush to prevent page resize from breaking zoom
+				// if both zoom and subchart enabled
+				const domain = $$.scale.zoom?.domain();
+
+				config.zoom_enabled && $$.brush && $$.brush.getSelection().call($$.brush.move, null);
+
 				state.resizing = true;
 
 				// https://github.com/naver/billboard.js/issues/2650
@@ -770,6 +776,8 @@ export default class ChartInternal {
 				}
 
 				$$.api.flush(false);
+
+				domain && $$.api.zoom(domain);
 			});
 		}
 

@@ -867,10 +867,7 @@ var demos = {
 							["data1", 300, 350, 300, 20, 240, 100],
 							["data2", 130, 100, 140, 200, 150, 50]
 						],
-						types: {
-							data1: "step",
-							data2: 'area-step'
-						}
+						type: 'step'
 					}
 				}
 			},
@@ -884,10 +881,7 @@ var demos = {
 							["data1", 300, 350, 300, 20, 240, 100],
 							["data2", 130, 100, 140, 200, 150, 50]
 						],
-						types: {
-							data1: "step",
-							data2: 'area-step'
-						}
+						type: 'step'
 					},
 					line: {
 						step: {
@@ -907,10 +901,7 @@ var demos = {
 							["data1", 300, 350, 300, 20, 240, 100],
 							["data2", 130, 100, 140, 200, 150, 50]
 						],
-						types: {
-							data1: "step",
-							data2: 'area-step'
-						}
+						type: 'step'
 					},
 					line: {
 						step: {
@@ -932,7 +923,12 @@ var demos = {
 						["data1", 30, 200, 100, 400, 150, 250],
 						["data2", 130, 340, 200, 500, 250, 350]
 					],
-					type: "line"
+					type: "step"
+				},
+				line: {
+					step:{
+						type: 'step-after',
+					}
 				},
 				axis: {
 					x: {
@@ -3216,6 +3212,21 @@ var demos = {
 				zoom: {
 					enabled: "zoom()"
 				}
+			},
+			func: function (chart) {
+				chart.timer = [
+					setTimeout(function () {
+						chart.zoom([30, 40])
+					}, 1000),
+					setTimeout(function () {
+						chart.load({
+							columns: [
+								["sample", 400, 500, 450, 700, 600, 500]
+							],
+							append: true
+						});
+					}, 3000)
+				];
 			},
 			description: "For zoom, move mouse wheel(desktop) or pinch(mobile) over chart area.<br>When is zoomed, navigate with dragging it."
 		},

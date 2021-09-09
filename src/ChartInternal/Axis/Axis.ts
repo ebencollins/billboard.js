@@ -890,7 +890,6 @@ class Axis {
 	redrawAxis(targetsToShow, wth, transitions, flow, isInit: boolean): void {
 		const $$ = this.owner;
 		const {config, scale, $el} = $$;
-		const hasZoom = !!scale.zoom;
 		let xDomainForZoom;
 
 		if (this.isCategorized() && targetsToShow.length === 0) {
