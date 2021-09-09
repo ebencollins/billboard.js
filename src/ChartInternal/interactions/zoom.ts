@@ -32,9 +32,7 @@ export default {
 		const zoomEnabled = config.zoom_enabled;
 
 		if (zoomEnabled && bind) {
-			// Do not bind zoom event when subchart is shown
-			!config.subchart_show &&
-				$$.bindZoomOnEventRect();
+			$$.bindZoomOnEventRect();
 		} else if (bind === false) {
 			$$.api.unzoom();
 			$$.unbindZoomEvent();
@@ -91,6 +89,11 @@ export default {
 			](org.xScale || scale.x);
 
 			const domain = $$.trimXDomain(newScale.domain());
+
+			// prevent weird pre-scrolling bug where it zooms out far before beginning of chart sometimes
+			if (domain <= $$.scale.subX.domain()[0]){
+				domain[0] = $$.scale.subx.domain()[0];
+			}
 			const rescale = config.zoom_rescale;
 
 			newScale.domain(domain, org.xDomain);
@@ -199,6 +202,15 @@ export default {
 			!config.subchart_show && (
 			state.dragging || isUnZoom || !event.sourceEvent
 		);
+
+		// update subchart selected region on zoom
+		if (config.subchart_show) {
+			$$.brush.move($$.brush.getSelection(), $$.scale.zoom.domain().map($$.scale.subX));
+		}
+
+		if ($$.axis.isCategorized() && scale.x.orgDomain()[0] === org.xDomain[0]) {
+			scale.x.domain([org.xDomain[0] - 1e-10, scale.x.orgDomain()[1]]);
+		}
 
 		$$.redraw({
 			withTransition: doTransition,

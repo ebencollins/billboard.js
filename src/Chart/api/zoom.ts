@@ -61,17 +61,12 @@ const zoom = function<T = TDomainRange>(domainValue?: T): T | undefined {
 				// hide any possible tooltip show before the zoom
 				$$.api.tooltip.hide();
 
-				if (config.subchart_show) {
-					const x = scale.zoom || scale.x;
+				// in case of 'config.zoom_rescale=true', use org.xScale
+				const x = isCategorized ? scale.x.orgScale() : (org.xScale || scale.x);
 
-					$$.brush.getSelection().call($$.brush.move, domain.map(x));
-					// resultDomain = domain;
-				} else {
-					// in case of 'config.zoom_rescale=true', use org.xScale
-					const x = isCategorized ? scale.x.orgScale() : (org.xScale || scale.x);
+				$$.updateCurrentZoomTransform(x, domain);
+				$$.brush && $$.brush.getSelection().call($$.brush.move, domain.map(scale.subX));
 
-					$$.updateCurrentZoomTransform(x, domain);
-				}
 
 				$$.setZoomResetButton();
 			}

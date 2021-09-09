@@ -32,42 +32,52 @@ export default {
 
 		// bind brush event
 		$$.brush.on("start brush end", event => {
-			const {selection, sourceEvent, target, type} = event;
+			const {selection, sourceEvent, target, type, mode} = event;
 
-			if (type === "start") {
-				$$.state.inputType === "touch" && $$.hideTooltip();
-				lastSelection = sourceEvent ? selection : null;
-				// sourceEvent && (state.domain = null);
-			}
+			// "read only" if zoom enabled
+			if (config.zoom_enabled) {
+				if (typeof mode !== "undefined" && type === "end") {
+					const scl = $$.scale.zoom || $$.scale.subX;
 
-			// if (type === "brush") {
-			if (/(start|brush)/.test(type)) {
-				// when brush selection updates happens on one edge, update only chainging edge and
-				// is only for adjustment of given domain range to be used to return current domain range.
-				type === "brush" && sourceEvent && state.domain && lastSelection?.forEach((v, i) => {
-					if (v !== selection[i]) {
-						state.domain[i] = scale.x.orgDomain()[i];
+					// move back to where it was - effectively disable subchart interaction
+					$$.brush.move($$.brush.getSelection(), scl.domain().map($$.scale.subX));
+				}
+			} else {
+				if (type === "start") {
+					$$.state.inputType === "touch" && $$.hideTooltip();
+					lastSelection = sourceEvent ? selection : null;
+					// sourceEvent && (state.domain = null);
+				}
+
+				// if (type === "brush") {
+				if (/(start|brush)/.test(type)) {
+					// when brush selection updates happens on one edge, update only chainging edge and
+					// is only for adjustment of given domain range to be used to return current domain range.
+					type === "brush" && sourceEvent && state.domain && lastSelection?.forEach((v, i) => {
+						if (v !== selection[i]) {
+							state.domain[i] = scale.x.orgDomain()[i];
+						}
+					});
+
+					$$.redrawForBrush(type !== "start");
+				}
+
+				if (type === "end") {
+					lastDomain = scale.x.orgDomain();
+				}
+
+				// handle brush's handle position & visibility
+				if (target?.handle) {
+					if (selection === null) {
+						$$.brush.handle.attr("display", "none");
+					} else {
+						$$.brush.handle.attr("display", null)
+							.attr("transform", (d, i) => {
+								const pos = [selection[i], height / 2];
+
+								return `translate(${isRotated ? pos.reverse() : pos})`;
+							});
 					}
-				});
-
-				$$.redrawForBrush(type !== "start");
-			}
-
-			if (type === "end") {
-				lastDomain = scale.x.orgDomain();
-			}
-
-			// handle brush's handle position & visibility
-			if (target?.handle) {
-				if (selection === null) {
-					$$.brush.handle.attr("display", "none");
-				} else {
-					$$.brush.handle.attr("display", null)
-						.attr("transform", (d, i) => {
-							const pos = [selection[i], height / 2];
-
-							return `translate(${isRotated ? pos.reverse() : pos})`;
-						});
 				}
 			}
 		});

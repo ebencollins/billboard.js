@@ -893,13 +893,12 @@ class Axis {
 		const hasZoom = !!scale.zoom;
 		let xDomainForZoom;
 
-		if (!hasZoom && this.isCategorized() && targetsToShow.length === 0) {
+		if (this.isCategorized() && targetsToShow.length === 0) {
 			scale.x.domain([0, $el.axis.x.selectAll(".tick").size()]);
 		}
 
 		if (scale.x && targetsToShow.length) {
-			!hasZoom &&
-				$$.updateXDomain(targetsToShow, wth.UpdateXDomain, wth.UpdateOrgXDomain, wth.TrimXDomain);
+			$$.updateXDomain(targetsToShow, wth.UpdateXDomain, wth.UpdateOrgXDomain, wth.TrimXDomain);
 
 			if (!config.axis_x_tick_values) {
 				this.updateXAxisTickValues(targetsToShow);
