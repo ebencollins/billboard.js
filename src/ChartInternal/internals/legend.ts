@@ -80,7 +80,6 @@ export default {
 	updateLegend(targetIds, options, transitions): void {
 		const $$ = this;
 		const {config, state, scale, $el} = $$;
-
 		const optionz = options || {
 			withTransform: false,
 			withTransitionForTransform: false,

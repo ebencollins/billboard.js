@@ -890,13 +890,16 @@ class Axis {
 	redrawAxis(targetsToShow, wth, transitions, flow, isInit: boolean): void {
 		const $$ = this.owner;
 		const {config, scale, $el} = $$;
+		const hasZoom = !!scale.zoom;
 		let xDomainForZoom;
 
-		if (this.isCategorized() && targetsToShow.length === 0) {
+		// hazoom was commented out - changing it seems to break loading things, but having it makes zoom reset after legend toggle
+		if (!hasZoom && this.isCategorized() && targetsToShow.length === 0) {
 			scale.x.domain([0, $el.axis.x.selectAll(".tick").size()]);
 		}
 
 		if (scale.x && targetsToShow.length) {
+			!hasZoom &&
 			$$.updateXDomain(targetsToShow, wth.UpdateXDomain, wth.UpdateOrgXDomain, wth.TrimXDomain);
 
 			if (!config.axis_x_tick_values) {

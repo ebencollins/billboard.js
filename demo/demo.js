@@ -3242,7 +3242,21 @@ var demos = {
 				zoom: {
 					enabled: "zoom()"
 				}
-			}
+			},
+			func: function(chart) {
+				chart.timer = [
+					setTimeout(function() {
+						chart.zoom([30, 40]);
+					}, 1000),
+					setTimeout(function() {
+						console.log("reee");
+						chart.xgrids([
+							{"value": 35, text: "AAA"},
+							// {"value": 34, text: "BBB"},
+						]);
+					}, 5000),
+				];
+			},
 		},
 		DragZoom: {
 			description: "Drag over chart area",

@@ -3,11 +3,11 @@
  * billboard.js project is licensed under the MIT license
  */
 import {
-	scaleTime as d3ScaleTime,
-	scaleUtc as d3ScaleUtc,
 	scaleLinear as d3ScaleLinear,
 	scaleLog as d3ScaleLog,
-	scaleSymlog as d3ScaleSymlog
+	scaleSymlog as d3ScaleSymlog,
+	scaleTime as d3ScaleTime,
+	scaleUtc as d3ScaleUtc
 } from "d3-scale";
 import {isString, isValue, parseDate} from "../../module/util";
 import type {IDataRow, IGridData} from "../data/IData";
@@ -43,15 +43,17 @@ export default {
 	 * @param {number} max Max range value
 	 * @param {Array} domain Domain value
 	 * @param {Function} offset The offset getter to be sum
+	 * @param isSubX
 	 * @returns {Function} scale
 	 * @private
 	 */
-	getXScale(min: number, max: number, domain: number[], offset: Function) {
+	getXScale(min: number, max: number, domain: number[], offset: Function, isSubX = false) {
 		const $$ = this;
-		const scale = ($$.state.loading !== "append" && $$.scale.zoom) || getScale($$.axis.getAxisType("x"), min, max);
+		const scale = (!isSubX && $$.state.loading !== "append" && $$.scale.zoom) || getScale($$.axis.getAxisType("x"), min, max);
 
 		return $$.getCustomizedXScale(
-			domain ? scale.domain(domain) : scale,
+			// subx zooms out of domain isnt copied first - dont know why
+			domain ? scale.domain([...domain]) : scale,
 			offset
 		);
 	},
@@ -169,11 +171,16 @@ export default {
 			// update scales
 			// x Axis
 			const xDomain = updateXDomain && scale.x?.orgDomain();
-			const xSubDomain = updateXDomain && org.xDomain;
+			// change to always update sub domain so subhchart doesn't get stuck zoomed in
+			const xSubDomain = org.xDomain;
 
 			scale.x = $$.getXScale(min.x, max.x, xDomain, () => axis.x.tickOffset());
-			scale.subX = $$.getXScale(min.x, max.x, xSubDomain, d => (
-				d % 1 ? 0 : (axis.subX ?? axis.x).tickOffset())
+			scale.subX = $$.getXScale(
+				min.x,
+				max.x,
+				xSubDomain,
+				d => (d % 1 ? 0 : (axis.subX ?? axis.x).tickOffset()),
+				true
 			);
 
 			format.xAxisTick = axis.getXAxisTickFormat();

@@ -329,7 +329,9 @@ export default {
 		}
 
 		if (withUpdateXDomain) {
-			const domainValue = domain || (!$$.brush || brushEmpty($$)) ?
+			// changed to use org.xDomain if zoom is enabled because otherwise it uses brush
+			// when things like legend are called, which leads to it zooming out too far/locking close/etc
+			const domainValue = domain || (zoomEnabled || !$$.brush || brushEmpty($$)) ?
 				org.xDomain : getBrushSelection($$).map(subX.invert);
 
 			x.domain(domainValue);

@@ -89,11 +89,6 @@ export default {
 			](org.xScale || scale.x);
 
 			const domain = $$.trimXDomain(newScale.domain());
-
-			// prevent weird pre-scrolling bug where it zooms out far before beginning of chart sometimes
-			if (domain <= $$.scale.subX.domain()[0]) {
-				domain[0] = $$.scale.subx.domain()[0];
-			}
 			const rescale = config.zoom_rescale;
 
 			newScale.domain(domain, org.xDomain);
@@ -186,10 +181,11 @@ export default {
 		}
 
 		const isMousemove = sourceEvent?.type === "mousemove";
-		const isZoomOut = sourceEvent?.wheelDelta < 0;
+		// const isZoomOut = sourceEvent?.wheelDelta < 0;
 		const {transform} = event;
 
-		if (!isMousemove && isZoomOut && scale.x.domain().every((v, i) => v !== org.xDomain[i])) {
+		// remove isZoomOut to correct zoom on either zoom in or out - not sure why it was only on out before
+		if (!isMousemove && scale.x.domain().every((v, i) => v !== org.xDomain[i])) {
 			scale.x.domain(org.xDomain);
 		}
 
