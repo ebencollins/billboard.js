@@ -5,13 +5,13 @@
  * billboard.js, JavaScript chart library
  * https://naver.github.io/billboard.js/
  * 
- * @version 3.2.2-nightly-20211120004539
+ * @version 3.9.4-nightly-20230912012910
  * @requires billboard.js
  * @summary billboard.js plugin
 */
 import { select } from 'd3-selection';
 
-/*! *****************************************************************************
+/******************************************************************************
 Copyright (c) Microsoft Corporation.
 
 Permission to use, copy, modify, and/or distribute this software for any
@@ -25,31 +25,24 @@ LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR
 OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 ***************************************************************************** */
+/* global Reflect, Promise, SuppressedError, Symbol */
 
-/* global Reflect, Promise */
 var _extendStatics = function extendStatics(d, b) {
   _extendStatics = Object.setPrototypeOf || {
     __proto__: []
   } instanceof Array && function (d, b) {
     d.__proto__ = b;
   } || function (d, b) {
-    for (var p in b) {
-      if (Object.prototype.hasOwnProperty.call(b, p)) d[p] = b[p];
-    }
+    for (var p in b) if (Object.prototype.hasOwnProperty.call(b, p)) d[p] = b[p];
   };
-
   return _extendStatics(d, b);
 };
-
 function __extends(d, b) {
   if (typeof b !== "function" && b !== null) throw new TypeError("Class extends value " + (b + "") + " is not a constructor or null");
-
   _extendStatics(d, b);
-
   function __() {
     this.constructor = d;
   }
-
   d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
 }
 
@@ -57,12 +50,10 @@ function __extends(d, b) {
  * Copyright (c) 2017 ~ present NAVER Corp.
  * billboard.js project is licensed under the MIT license
  */
-
 /**
  * Base class to generate billboard.js plugin
  * @class Plugin
  */
-
 /**
  * Version info string for plugin
  * @name version
@@ -72,79 +63,51 @@ function __extends(d, b) {
  * @example
  *   bb.plugin.stanford.version;  // ex) 1.9.0
  */
-var Plugin = /*#__PURE__*/function () {
-  /**
-   * Version info string for plugin
-   * @name version
-   * @static
-   * @memberof Plugin
-   * @type {String}
-   * @example
-   *   bb.plugin.stanford.version;  // ex) 1.9.0
-   */
-
-  /**
-   * Constructor
-   * @param {Any} options config option object
-   * @private
-   */
-  function Plugin(options) {
-    if (options === void 0) {
-      options = {};
+var Plugin = /** @class */ (function () {
+    /**
+     * Constructor
+     * @param {Any} options config option object
+     * @private
+     */
+    function Plugin(options) {
+        if (options === void 0) { options = {}; }
+        this.options = options;
     }
-
-    this.$$;
-    this.options = options;
-  }
-  /**
-   * Lifecycle hook for 'beforeInit' phase.
-   * @private
-   */
-
-
-  var _proto = Plugin.prototype;
-
-  _proto.$beforeInit = function $beforeInit() {}
-  /**
-   * Lifecycle hook for 'init' phase.
-   * @private
-   */
-  ;
-
-  _proto.$init = function $init() {}
-  /**
-   * Lifecycle hook for 'afterInit' phase.
-   * @private
-   */
-  ;
-
-  _proto.$afterInit = function $afterInit() {}
-  /**
-   * Lifecycle hook for 'redraw' phase.
-   * @private
-   */
-  ;
-
-  _proto.$redraw = function $redraw() {}
-  /**
-   * Lifecycle hook for 'willDestroy' phase.
-   * @private
-   */
-  ;
-
-  _proto.$willDestroy = function $willDestroy() {
-    var _this = this;
-
-    Object.keys(this).forEach(function (key) {
-      _this[key] = null;
-      delete _this[key];
-    });
-  };
-
-  return Plugin;
-}();
-
-Plugin.version = "#3.2.2-nightly-20211120004539#";
+    /**
+     * Lifecycle hook for 'beforeInit' phase.
+     * @private
+     */
+    Plugin.prototype.$beforeInit = function () { };
+    /**
+     * Lifecycle hook for 'init' phase.
+     * @private
+     */
+    Plugin.prototype.$init = function () { };
+    /**
+     * Lifecycle hook for 'afterInit' phase.
+     * @private
+     */
+    Plugin.prototype.$afterInit = function () { };
+    /**
+     * Lifecycle hook for 'redraw' phase.
+     * @private
+     */
+    Plugin.prototype.$redraw = function () { };
+    /**
+     * Lifecycle hook for 'willDestroy' phase.
+     * @private
+     */
+    Plugin.prototype.$willDestroy = function () {
+        var _this = this;
+        Object.keys(this).forEach(function (key) {
+            _this[key] = null;
+            delete _this[key];
+        });
+    };
+    Plugin.version = "3.9.4-nightly-20230912012910";
+    return Plugin;
+}());
+var Plugin$1 = Plugin;
 
 /**
  * Bubble compare diagram plugin.<br>
@@ -210,7 +173,7 @@ var BubbleCompare = /** @class */ (function (_super) {
         d.raise && select(d.node().parentNode.parentNode).raise();
     };
     BubbleCompare.prototype.changeCursorPoint = function () {
-        this.$$.$el.svg.select(".bb-event-rect").style("cursor", "pointer");
+        this.$$.$el.eventRect.style("cursor", "pointer");
     };
     BubbleCompare.prototype.findClosest = function (values, pos) {
         var _this = this;
@@ -243,6 +206,6 @@ var BubbleCompare = /** @class */ (function (_super) {
     };
     BubbleCompare.version = "0.0.1";
     return BubbleCompare;
-}(Plugin));
+}(Plugin$1));
 
 export { BubbleCompare as default };

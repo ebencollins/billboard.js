@@ -5,19 +5,17 @@
  * billboard.js, JavaScript chart library
  * https://naver.github.io/billboard.js/
  * 
- * @version 3.2.2-nightly-20211120004539
+ * @version 3.9.4-nightly-20230912012910
  * @requires billboard.js
  * @summary billboard.js plugin
 */
 import { interpolateHslLong } from 'd3-interpolate';
 import { hsl } from 'd3-color';
-import { scaleSequential, scaleLog, scaleSequentialLog } from 'd3-scale';
-import 'd3-selection';
-import 'd3-brush';
+import { scaleSequential, scaleSymlog, scaleSequentialLog } from 'd3-scale';
 import { axisRight } from 'd3-axis';
 import { format } from 'd3-format';
 
-/*! *****************************************************************************
+/******************************************************************************
 Copyright (c) Microsoft Corporation.
 
 Permission to use, copy, modify, and/or distribute this software for any
@@ -31,33 +29,36 @@ LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR
 OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 ***************************************************************************** */
+/* global Reflect, Promise, SuppressedError, Symbol */
 
-/* global Reflect, Promise */
 var _extendStatics = function extendStatics(d, b) {
   _extendStatics = Object.setPrototypeOf || {
     __proto__: []
   } instanceof Array && function (d, b) {
     d.__proto__ = b;
   } || function (d, b) {
-    for (var p in b) {
-      if (Object.prototype.hasOwnProperty.call(b, p)) d[p] = b[p];
-    }
+    for (var p in b) if (Object.prototype.hasOwnProperty.call(b, p)) d[p] = b[p];
   };
-
   return _extendStatics(d, b);
 };
-
 function __extends(d, b) {
   if (typeof b !== "function" && b !== null) throw new TypeError("Class extends value " + (b + "") + " is not a constructor or null");
-
   _extendStatics(d, b);
-
   function __() {
     this.constructor = d;
   }
-
   d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
 }
+var _assign = function __assign() {
+  _assign = Object.assign || function (t) {
+    for (var s, i = 1, n = arguments.length; i < n; i++) {
+      s = arguments[i];
+      for (var p in s) if (Object.prototype.hasOwnProperty.call(s, p)) t[p] = s[p];
+    }
+    return t;
+  };
+  return _assign.apply(this, arguments);
+};
 function __spreadArray(to, from, pack) {
   if (pack || arguments.length === 2) for (var i = 0, l = from.length, ar; i < l; i++) {
     if (ar || !(i in from)) {
@@ -76,126 +77,177 @@ function __spreadArray(to, from, pack) {
  * CSS class names definition
  * @private
  */
-var CLASS$1 = {
+var $COMMON = {
+    button: "bb-button",
+    chart: "bb-chart",
+    empty: "bb-empty",
+    main: "bb-main",
+    target: "bb-target",
+    EXPANDED: "_expanded_"
+};
+var $ARC = {
     arc: "bb-arc",
     arcLabelLine: "bb-arc-label-line",
     arcs: "bb-arcs",
+    chartArc: "bb-chart-arc",
+    chartArcs: "bb-chart-arcs",
+    chartArcsBackground: "bb-chart-arcs-background",
+    chartArcsTitle: "bb-chart-arcs-title",
+    needle: "bb-needle"
+};
+var $AREA = {
     area: "bb-area",
-    areas: "bb-areas",
+    areas: "bb-areas"
+};
+var $AXIS = {
     axis: "bb-axis",
     axisX: "bb-axis-x",
     axisXLabel: "bb-axis-x-label",
     axisY: "bb-axis-y",
     axisY2: "bb-axis-y2",
     axisY2Label: "bb-axis-y2-label",
-    axisYLabel: "bb-axis-y-label",
+    axisYLabel: "bb-axis-y-label"
+};
+var $BAR = {
     bar: "bb-bar",
     bars: "bb-bars",
-    brush: "bb-brush",
-    button: "bb-button",
-    buttonZoomReset: "bb-zoom-reset",
+    chartBar: "bb-chart-bar",
+    chartBars: "bb-chart-bars"
+};
+var $CANDLESTICK = {
     candlestick: "bb-candlestick",
     candlesticks: "bb-candlesticks",
-    chart: "bb-chart",
-    chartArc: "bb-chart-arc",
-    chartArcs: "bb-chart-arcs",
-    chartArcsBackground: "bb-chart-arcs-background",
+    chartCandlestick: "bb-chart-candlestick",
+    chartCandlesticks: "bb-chart-candlesticks",
+    valueDown: "bb-value-down",
+    valueUp: "bb-value-up"
+};
+var $CIRCLE = {
+    chartCircles: "bb-chart-circles",
+    circle: "bb-circle",
+    circles: "bb-circles"
+};
+var $COLOR = {
+    colorPattern: "bb-color-pattern",
+    colorScale: "bb-colorscale"
+};
+var $DRAG = {
+    dragarea: "bb-dragarea",
+    INCLUDED: "_included_"
+};
+var $GAUGE = {
     chartArcsGaugeMax: "bb-chart-arcs-gauge-max",
     chartArcsGaugeMin: "bb-chart-arcs-gauge-min",
     chartArcsGaugeUnit: "bb-chart-arcs-gauge-unit",
-    chartArcsTitle: "bb-chart-arcs-title",
     chartArcsGaugeTitle: "bb-chart-arcs-gauge-title",
-    chartBar: "bb-chart-bar",
-    chartBars: "bb-chart-bars",
-    chartCandlestick: "bb-chart-candlestick",
-    chartCandlesticks: "bb-chart-candlesticks",
-    chartCircles: "bb-chart-circles",
-    chartLine: "bb-chart-line",
-    chartLines: "bb-chart-lines",
-    chartRadar: "bb-chart-radar",
-    chartRadars: "bb-chart-radars",
-    chartText: "bb-chart-text",
-    chartTexts: "bb-chart-texts",
-    circle: "bb-circle",
-    circles: "bb-circles",
-    colorPattern: "bb-color-pattern",
-    colorScale: "bb-colorscale",
-    defocused: "bb-defocused",
-    dragarea: "bb-dragarea",
-    empty: "bb-empty",
-    eventRect: "bb-event-rect",
-    eventRects: "bb-event-rects",
-    eventRectsMultiple: "bb-event-rects-multiple",
-    eventRectsSingle: "bb-event-rects-single",
-    focused: "bb-focused",
-    gaugeValue: "bb-gauge-value",
-    grid: "bb-grid",
-    gridLines: "bb-grid-lines",
+    gaugeValue: "bb-gauge-value"
+};
+var $LEGEND = {
     legend: "bb-legend",
     legendBackground: "bb-legend-background",
     legendItem: "bb-legend-item",
     legendItemEvent: "bb-legend-item-event",
-    legendItemFocused: "bb-legend-item-focused",
     legendItemHidden: "bb-legend-item-hidden",
     legendItemPoint: "bb-legend-item-point",
-    legendItemTile: "bb-legend-item-tile",
-    level: "bb-level",
-    levels: "bb-levels",
+    legendItemTile: "bb-legend-item-tile"
+};
+var $LINE = {
+    chartLine: "bb-chart-line",
+    chartLines: "bb-chart-lines",
     line: "bb-line",
-    lines: "bb-lines",
-    main: "bb-main",
-    region: "bb-region",
-    regions: "bb-regions",
-    selectedCircle: "bb-selected-circle",
-    selectedCircles: "bb-selected-circles",
-    shape: "bb-shape",
-    shapes: "bb-shapes",
-    stanfordElements: "bb-stanford-elements",
-    stanfordLine: "bb-stanford-line",
-    stanfordLines: "bb-stanford-lines",
-    stanfordRegion: "bb-stanford-region",
-    stanfordRegions: "bb-stanford-regions",
-    subchart: "bb-subchart",
-    target: "bb-target",
-    text: "bb-text",
-    texts: "bb-texts",
-    title: "bb-title",
-    tooltip: "bb-tooltip",
-    tooltipContainer: "bb-tooltip-container",
-    tooltipName: "bb-tooltip-name",
-    valueDown: "bb-value-down",
-    valueUp: "bb-value-up",
-    xgrid: "bb-xgrid",
+    lines: "bb-lines"
+};
+var $EVENT = {
+    eventRect: "bb-event-rect",
+    eventRects: "bb-event-rects",
+    eventRectsMultiple: "bb-event-rects-multiple",
+    eventRectsSingle: "bb-event-rects-single",
+};
+var $FOCUS = {
+    focused: "bb-focused",
+    defocused: "bb-defocused",
+    legendItemFocused: "bb-legend-item-focused",
     xgridFocus: "bb-xgrid-focus",
+    ygridFocus: "bb-ygrid-focus"
+};
+var $GRID = {
+    grid: "bb-grid",
+    gridLines: "bb-grid-lines",
+    xgrid: "bb-xgrid",
     xgridLine: "bb-xgrid-line",
     xgridLines: "bb-xgrid-lines",
     xgrids: "bb-xgrids",
     ygrid: "bb-ygrid",
-    ygridFocus: "bb-ygrid-focus",
     ygridLine: "bb-ygrid-line",
     ygridLines: "bb-ygrid-lines",
-    ygrids: "bb-ygrids",
-    zoomBrush: "bb-zoom-brush",
-    EXPANDED: "_expanded_",
-    SELECTED: "_selected_",
-    INCLUDED: "_included_",
+    ygrids: "bb-ygrids"
+};
+var $RADAR = {
+    chartRadar: "bb-chart-radar",
+    chartRadars: "bb-chart-radars"
+};
+var $REGION = {
+    region: "bb-region",
+    regions: "bb-regions"
+};
+var $SELECT = {
+    selectedCircle: "bb-selected-circle",
+    selectedCircles: "bb-selected-circles",
+    SELECTED: "_selected_"
+};
+var $SHAPE = {
+    shape: "bb-shape",
+    shapes: "bb-shapes",
+};
+var $SUBCHART = {
+    brush: "bb-brush",
+    subchart: "bb-subchart"
+};
+var $TEXT = {
+    chartText: "bb-chart-text",
+    chartTexts: "bb-chart-texts",
+    text: "bb-text",
+    texts: "bb-texts",
+    title: "bb-title",
     TextOverlapping: "text-overlapping"
 };
+var $TOOLTIP = {
+    tooltip: "bb-tooltip",
+    tooltipContainer: "bb-tooltip-container",
+    tooltipName: "bb-tooltip-name"
+};
+var $TREEMAP = {
+    treemap: "bb-treemap",
+    chartTreemap: "bb-chart-treemap",
+    chartTreemaps: "bb-chart-treemaps"
+};
+var $ZOOM = {
+    buttonZoomReset: "bb-zoom-reset",
+    zoomBrush: "bb-zoom-brush"
+};
+_assign(_assign(_assign(_assign(_assign(_assign(_assign(_assign(_assign(_assign(_assign(_assign(_assign(_assign(_assign(_assign(_assign(_assign(_assign(_assign(_assign(_assign(_assign(_assign({}, $COMMON), $ARC), $AREA), $AXIS), $BAR), $CANDLESTICK), $CIRCLE), $COLOR), $DRAG), $GAUGE), $LEGEND), $LINE), $EVENT), $FOCUS), $GRID), $RADAR), $REGION), $SELECT), $SHAPE), $SUBCHART), $TEXT), $TOOLTIP), $TREEMAP), $ZOOM);
 
 /**
  * Copyright (c) 2017 ~ present NAVER Corp.
  * billboard.js project is licensed under the MIT license
  */
-var win = (function () {
-    var root = (typeof globalThis === "object" && globalThis !== null && globalThis.Object === Object && globalThis) ||
+/**
+ * Window object
+ * @private
+ */
+/* eslint-disable no-new-func, no-undef */
+/**
+ * Get global object
+ * @returns {object} window object
+ * @private
+ */
+function getGlobal() {
+    return (typeof globalThis === "object" && globalThis !== null && globalThis.Object === Object && globalThis) ||
         (typeof global === "object" && global !== null && global.Object === Object && global) ||
-        (typeof self === "object" && self !== null && self.Object === Object && self);
-    return root || Function("return this")();
-})();
-/* eslint-enable no-new-func, no-undef */
-// fallback for non-supported environments
-win.requestIdleCallback = win.requestIdleCallback || (function (cb) { return setTimeout(cb, 1); });
-win.cancelIdleCallback = win.cancelIdleCallback || (function (id) { return clearTimeout(id); });
+        (typeof self === "object" && self !== null && self.Object === Object && self) ||
+        Function("return this")();
+}
+var win = getGlobal();
 var doc = win === null || win === void 0 ? void 0 : win.document;
 
 var isFunction = function (v) { return typeof v === "function"; };
@@ -323,13 +375,16 @@ var getRange = function (start, end, step) {
  * @private
  */
 function parseDate(date) {
+    var _a;
     var parsedDate;
     if (date instanceof Date) {
         parsedDate = date;
     }
     else if (isString(date)) {
-        var _a = this, config = _a.config, format = _a.format;
-        parsedDate = format.dataTime(config.data_xFormat)(date);
+        var _b = this, config = _b.config, format = _b.format;
+        // if fails to parse, try by new Date()
+        // https://github.com/naver/billboard.js/issues/1714
+        parsedDate = (_a = format.dataTime(config.data_xFormat)(date)) !== null && _a !== void 0 ? _a : new Date(date);
     }
     else if (isNumber(date) && !isNaN(date)) {
         parsedDate = new Date(+date);
@@ -374,18 +429,20 @@ function loadConfig(config) {
             thisConfig[key] = read;
         }
     });
+    // only should run in the ChartInternal context
+    if (this.api) {
+        this.state.orgConfig = config;
+    }
 }
 
 /**
  * Copyright (c) 2017 ~ present NAVER Corp.
  * billboard.js project is licensed under the MIT license
  */
-
 /**
  * Base class to generate billboard.js plugin
  * @class Plugin
  */
-
 /**
  * Version info string for plugin
  * @name version
@@ -395,79 +452,51 @@ function loadConfig(config) {
  * @example
  *   bb.plugin.stanford.version;  // ex) 1.9.0
  */
-var Plugin = /*#__PURE__*/function () {
-  /**
-   * Version info string for plugin
-   * @name version
-   * @static
-   * @memberof Plugin
-   * @type {String}
-   * @example
-   *   bb.plugin.stanford.version;  // ex) 1.9.0
-   */
-
-  /**
-   * Constructor
-   * @param {Any} options config option object
-   * @private
-   */
-  function Plugin(options) {
-    if (options === void 0) {
-      options = {};
+var Plugin = /** @class */ (function () {
+    /**
+     * Constructor
+     * @param {Any} options config option object
+     * @private
+     */
+    function Plugin(options) {
+        if (options === void 0) { options = {}; }
+        this.options = options;
     }
-
-    this.$$;
-    this.options = options;
-  }
-  /**
-   * Lifecycle hook for 'beforeInit' phase.
-   * @private
-   */
-
-
-  var _proto = Plugin.prototype;
-
-  _proto.$beforeInit = function $beforeInit() {}
-  /**
-   * Lifecycle hook for 'init' phase.
-   * @private
-   */
-  ;
-
-  _proto.$init = function $init() {}
-  /**
-   * Lifecycle hook for 'afterInit' phase.
-   * @private
-   */
-  ;
-
-  _proto.$afterInit = function $afterInit() {}
-  /**
-   * Lifecycle hook for 'redraw' phase.
-   * @private
-   */
-  ;
-
-  _proto.$redraw = function $redraw() {}
-  /**
-   * Lifecycle hook for 'willDestroy' phase.
-   * @private
-   */
-  ;
-
-  _proto.$willDestroy = function $willDestroy() {
-    var _this = this;
-
-    Object.keys(this).forEach(function (key) {
-      _this[key] = null;
-      delete _this[key];
-    });
-  };
-
-  return Plugin;
-}();
-
-Plugin.version = "#3.2.2-nightly-20211120004539#";
+    /**
+     * Lifecycle hook for 'beforeInit' phase.
+     * @private
+     */
+    Plugin.prototype.$beforeInit = function () { };
+    /**
+     * Lifecycle hook for 'init' phase.
+     * @private
+     */
+    Plugin.prototype.$init = function () { };
+    /**
+     * Lifecycle hook for 'afterInit' phase.
+     * @private
+     */
+    Plugin.prototype.$afterInit = function () { };
+    /**
+     * Lifecycle hook for 'redraw' phase.
+     * @private
+     */
+    Plugin.prototype.$redraw = function () { };
+    /**
+     * Lifecycle hook for 'willDestroy' phase.
+     * @private
+     */
+    Plugin.prototype.$willDestroy = function () {
+        var _this = this;
+        Object.keys(this).forEach(function (key) {
+            _this[key] = null;
+            delete _this[key];
+        });
+    };
+    Plugin.version = "3.9.4-nightly-20230912012910";
+    return Plugin;
+}());
+var Plugin$1 = Plugin;
 
 /**
  * Copyright (c) 2017 ~ present NAVER Corp.
@@ -614,6 +643,7 @@ var Options = /** @class */ (function () {
     }
     return Options;
 }());
+var Options$1 = Options;
 
 /**
  * Copyright (c) 2017 ~ present NAVER Corp.
@@ -726,6 +756,7 @@ function getCentroid(points) {
  * Copyright (c) 2017 ~ present NAVER Corp.
  * billboard.js project is licensed under the MIT license
  */
+// @ts-nocheck
 /**
  * Stanford diagram plugin element class
  * @class ColorScale
@@ -764,13 +795,19 @@ var Elements = /** @class */ (function () {
             .style("opacity", "0");
         stanfordLineEnter
             .merge(stanfordLine)
-            .attr("class", function (d) { return CLASS.stanfordLine + (d["class"] ? " ".concat(d["class"]) : ""); })
+            .attr("class", function (d) { return CLASS.stanfordLine + (d.class ? " ".concat(d.class) : ""); })
             .select("line")
             .transition()
             .duration(duration)
-            .attr("x1", function (d) { return (isRotated ? yvCustom(d, "y1") : xvCustom(d, "x1")); })
+            .attr("x1", function (d) {
+            var v = isRotated ? yvCustom(d, "y1") : xvCustom(d, "x1");
+            return v;
+        })
             .attr("x2", function (d) { return (isRotated ? yvCustom(d, "y2") : xvCustom(d, "x2")); })
-            .attr("y1", function (d) { return (isRotated ? xvCustom(d, "x1") : yvCustom(d, "y1")); })
+            .attr("y1", function (d) {
+            var v = isRotated ? xvCustom(d, "x1") : yvCustom(d, "y1");
+            return v;
+        })
             .attr("y2", function (d) { return (isRotated ? xvCustom(d, "x2") : yvCustom(d, "y2")); })
             .transition()
             .style("opacity", null);
@@ -801,7 +838,7 @@ var Elements = /** @class */ (function () {
         stanfordRegion = stanfordRegionEnter.merge(stanfordRegion);
         // update
         stanfordRegion
-            .attr("class", function (d) { return CLASS.stanfordRegion + (d["class"] ? " ".concat(d["class"]) : ""); })
+            .attr("class", function (d) { return CLASS.stanfordRegion + (d.class ? " ".concat(d.class) : ""); })
             .select("polygon")
             .transition()
             .duration(duration)
@@ -853,6 +890,7 @@ var Elements = /** @class */ (function () {
     };
     return Elements;
 }());
+var Elements$1 = Elements;
 
 /**
  * Copyright (c) 2017 ~ present NAVER Corp.
@@ -896,7 +934,7 @@ var ColorScale = /** @class */ (function () {
             .attr("height", barHeight)
             .attr("fill", function (d) { return inverseScale(d); });
         // Legend Axis
-        var axisScale = scaleLog()
+        var axisScale = scaleSymlog()
             .domain([target.minEpochs, target.maxEpochs])
             .range([
             points[0] + config.padding_top + points[points.length - 1] + barHeight - 1,
@@ -938,6 +976,7 @@ var ColorScale = /** @class */ (function () {
     };
     return ColorScale;
 }());
+var ColorScale$1 = ColorScale;
 
 /**
  * Stanford diagram plugin
@@ -1028,7 +1067,7 @@ var Stanford = /** @class */ (function (_super) {
     __extends(Stanford, _super);
     function Stanford(options) {
         var _this = _super.call(this, options) || this;
-        _this.config = new Options();
+        _this.config = new Options$1();
         return _this;
     }
     Stanford.prototype.$beforeInit = function () {
@@ -1047,8 +1086,8 @@ var Stanford = /** @class */ (function (_super) {
         var $$ = this.$$;
         loadConfig.call(this, this.options);
         $$.color = this.getStanfordPointColor.bind($$);
-        this.colorScale = new ColorScale(this);
-        this.elements = new Elements(this);
+        this.colorScale = new ColorScale$1(this);
+        this.elements = new Elements$1(this);
         this.convertData();
         this.initStanfordData();
         this.setStanfordTooltip();
@@ -1061,7 +1100,7 @@ var Stanford = /** @class */ (function (_super) {
         (_b = this.elements) === null || _b === void 0 ? void 0 : _b.updateStanfordElements(duration);
     };
     Stanford.prototype.getOptions = function () {
-        return new Options();
+        return new Options$1();
     };
     Stanford.prototype.convertData = function () {
         var data = this.$$.data.targets;
@@ -1075,25 +1114,6 @@ var Stanford = /** @class */ (function (_super) {
             d.colors = undefined;
             d.colorscale = undefined;
         });
-    };
-    Stanford.prototype.xvCustom = function (d, xyValue) {
-        var $$ = this;
-        var axis = $$.axis, config = $$.config;
-        var value = xyValue ? d[xyValue] : $$.getBaseValue(d);
-        if (axis.isTimeSeries()) {
-            value = parseDate.call($$, value);
-        }
-        else if (axis.isCategorized() && isString(value)) {
-            value = config.axis_x_categories.indexOf(d.value);
-        }
-        return Math.ceil($$.scale.x(value));
-    };
-    Stanford.prototype.yvCustom = function (d, xyValue) {
-        var $$ = this;
-        var scale = $$.scale;
-        var yScale = d.axis && d.axis === "y2" ? scale.y2 : scale.y;
-        var value = xyValue ? d[xyValue] : $$.getBaseValue(d);
-        return Math.ceil(yScale(value));
     };
     Stanford.prototype.initStanfordData = function () {
         var config = this.config;
@@ -1118,9 +1138,11 @@ var Stanford = /** @class */ (function (_super) {
         var config = this.$$.config;
         if (isEmpty(config.tooltip_contents)) {
             config.tooltip_contents = function (d, defaultTitleFormat, defaultValueFormat, color) {
-                var html = "<table class=\"".concat(CLASS$1.tooltip, "\"><tbody>");
+                var data_x = config.data_x;
+                var html = "<table class=\"".concat($TOOLTIP.tooltip, "\"><tbody>");
                 d.forEach(function (v) {
-                    html += "<tr>\n\t\t\t\t\t\t\t<th>".concat(defaultTitleFormat(config.data_x), "</th>\n\t\t\t\t\t\t\t<th class=\"value\">").concat(defaultValueFormat(v.x), "</th>\n\t\t\t\t\t\t</tr>\n\t\t\t\t\t\t<tr>\n\t\t\t\t\t\t\t<th>").concat(defaultTitleFormat(v.id), "</th>\n\t\t\t\t\t\t\t<th class=\"value\">").concat(defaultValueFormat(v.value), "</th>\n\t\t\t\t\t\t</tr>\n\t\t\t\t\t\t<tr class=\"").concat(CLASS$1.tooltipName, "-").concat(v.id, "\">\n\t\t\t\t\t\t\t<td class=\"name\"><span style=\"background-color:").concat(color(v), "\"></span>").concat(defaultTitleFormat("Epochs"), "</td>\n\t\t\t\t\t\t\t<td class=\"value\">").concat(defaultValueFormat(v.epochs), "</td>\n\t\t\t\t\t\t</tr>");
+                    var _a = v.id, id = _a === void 0 ? "" : _a, _b = v.value, value = _b === void 0 ? 0 : _b, _c = v.epochs, epochs = _c === void 0 ? 0 : _c, _d = v.x, x = _d === void 0 ? "" : _d;
+                    html += "<tr>\n\t\t\t\t\t\t\t<th>".concat(data_x || "", "</th>\n\t\t\t\t\t\t\t<th class=\"value\">").concat(defaultTitleFormat(x), "</th>\n\t\t\t\t\t\t</tr>\n\t\t\t\t\t\t<tr>\n\t\t\t\t\t\t\t<th>").concat(v.id, "</th>\n\t\t\t\t\t\t\t<th class=\"value\">").concat(defaultValueFormat(value), "</th>\n\t\t\t\t\t\t</tr>\n\t\t\t\t\t\t<tr class=\"").concat($TOOLTIP.tooltipName, "-").concat(id, "\">\n\t\t\t\t\t\t\t<td class=\"name\"><span style=\"background-color:").concat(color(v), "\"></span>Epochs</td>\n\t\t\t\t\t\t\t<td class=\"value\">").concat(defaultValueFormat(epochs), "</td>\n\t\t\t\t\t\t</tr>");
                 });
                 return "".concat(html, "</tbody></table>");
             };
@@ -1144,6 +1166,6 @@ var Stanford = /** @class */ (function (_super) {
         };
     };
     return Stanford;
-}(Plugin));
+}(Plugin$1));
 
 export { Stanford as default };

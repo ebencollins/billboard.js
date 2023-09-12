@@ -5,7 +5,7 @@
  * billboard.js, JavaScript chart library
  * https://naver.github.io/billboard.js/
  *
- * @version 3.2.2-nightly-20211120004539
+ * @version 3.9.4-nightly-20230912012910
  * @requires billboard.js
  * @summary billboard.js plugin
  */
@@ -83,21 +83,25 @@ __webpack_require__.d(__webpack_exports__, {
   "default": function() { return /* binding */ BubbleCompare; }
 });
 
+;// CONCATENATED MODULE: ./node_modules/@babel/runtime/helpers/esm/newArrowCheck.js
+function _newArrowCheck(innerThis, boundThis) {
+  if (innerThis !== boundThis) {
+    throw new TypeError("Cannot instantiate an arrow function");
+  }
+}
 ;// CONCATENATED MODULE: ./node_modules/@babel/runtime/helpers/esm/assertThisInitialized.js
 function _assertThisInitialized(self) {
   if (self === void 0) {
     throw new ReferenceError("this hasn't been initialised - super() hasn't been called");
   }
-
   return self;
 }
 ;// CONCATENATED MODULE: ./node_modules/@babel/runtime/helpers/esm/setPrototypeOf.js
 function _setPrototypeOf(o, p) {
-  _setPrototypeOf = Object.setPrototypeOf || function _setPrototypeOf(o, p) {
+  _setPrototypeOf = Object.setPrototypeOf ? Object.setPrototypeOf.bind() : function _setPrototypeOf(o, p) {
     o.__proto__ = p;
     return o;
   };
-
   return _setPrototypeOf(o, p);
 }
 ;// CONCATENATED MODULE: ./node_modules/@babel/runtime/helpers/esm/inheritsLoose.js
@@ -110,16 +114,15 @@ function _inheritsLoose(subClass, superClass) {
 // EXTERNAL MODULE: external {"commonjs":"d3-selection","commonjs2":"d3-selection","amd":"d3-selection","root":"d3"}
 var external_commonjs_d3_selection_commonjs2_d3_selection_amd_d3_selection_root_d3_ = __webpack_require__(1);
 ;// CONCATENATED MODULE: ./src/Plugin/Plugin.ts
+
 /**
  * Copyright (c) 2017 ~ present NAVER Corp.
  * billboard.js project is licensed under the MIT license
  */
-
 /**
  * Base class to generate billboard.js plugin
  * @class Plugin
  */
-
 /**
  * Version info string for plugin
  * @name version
@@ -129,7 +132,7 @@ var external_commonjs_d3_selection_commonjs2_d3_selection_amd_d3_selection_root_
  * @example
  *   bb.plugin.stanford.version;  // ex) 1.9.0
  */
-var Plugin = /*#__PURE__*/function () {
+let Plugin = /*#__PURE__*/function () {
   /**
    * Constructor
    * @param {Any} options config option object
@@ -139,62 +142,55 @@ var Plugin = /*#__PURE__*/function () {
     if (options === void 0) {
       options = {};
     }
-
     this.$$ = void 0;
     this.options = void 0;
     this.options = options;
   }
+
   /**
    * Lifecycle hook for 'beforeInit' phase.
    * @private
    */
-
-
   var _proto = Plugin.prototype;
-
   _proto.$beforeInit = function $beforeInit() {}
+
   /**
    * Lifecycle hook for 'init' phase.
    * @private
-   */
-  ;
-
+   */;
   _proto.$init = function $init() {}
+
   /**
    * Lifecycle hook for 'afterInit' phase.
    * @private
-   */
-  ;
-
+   */;
   _proto.$afterInit = function $afterInit() {}
+
   /**
    * Lifecycle hook for 'redraw' phase.
    * @private
-   */
-  ;
-
+   */;
   _proto.$redraw = function $redraw() {}
+
   /**
    * Lifecycle hook for 'willDestroy' phase.
    * @private
-   */
-  ;
-
+   */;
   _proto.$willDestroy = function $willDestroy() {
     var _this = this;
-
     Object.keys(this).forEach(function (key) {
-      _this[key] = null;
-      delete _this[key];
-    });
+      _newArrowCheck(this, _this);
+      this[key] = null;
+      delete this[key];
+    }.bind(this));
   };
-
   return Plugin;
 }();
-
-Plugin.version = "3.2.2";
+Plugin.version = "3.9.4-nightly-20230912012910";
 
 ;// CONCATENATED MODULE: ./src/Plugin/bubblecompare/index.ts
+
+
 
 
 
@@ -240,85 +236,70 @@ Plugin.version = "3.2.2";
  *     ]
  * })
  */
-
-var BubbleCompare = /*#__PURE__*/function (_Plugin) {
+let BubbleCompare = /*#__PURE__*/function (_Plugin) {
   _inheritsLoose(BubbleCompare, _Plugin);
-
   function BubbleCompare(options) {
     var _this = _Plugin.call(this, options) || this;
-
     _this.$$ = void 0;
     return _assertThisInitialized(_this) || _assertThisInitialized(_this);
   }
-
   var _proto = BubbleCompare.prototype;
-
   _proto.$init = function $init() {
-    var $$ = this.$$;
+    const $$ = this.$$;
     $$.findClosest = this.findClosest.bind(this);
     $$.getBubbleR = this.getBubbleR.bind(this);
     $$.pointExpandedR = this.pointExpandedR.bind(this);
   };
-
   _proto.pointExpandedR = function pointExpandedR(d) {
-    var baseR = this.getBubbleR(d),
-        _this$options$expandS = this.options.expandScale,
-        expandScale = _this$options$expandS === void 0 ? 1 : _this$options$expandS;
+    const baseR = this.getBubbleR(d),
+      _this$options$expandS = this.options.expandScale,
+      expandScale = _this$options$expandS === void 0 ? 1 : _this$options$expandS;
     BubbleCompare.raiseFocusedBubbleLayer(d);
     this.changeCursorPoint();
     return baseR * expandScale;
   };
-
   BubbleCompare.raiseFocusedBubbleLayer = function raiseFocusedBubbleLayer(d) {
     d.raise && (0,external_commonjs_d3_selection_commonjs2_d3_selection_amd_d3_selection_root_d3_.select)(d.node().parentNode.parentNode).raise();
   };
-
   _proto.changeCursorPoint = function changeCursorPoint() {
-    this.$$.$el.svg.select(".bb-event-rect").style("cursor", "pointer");
+    this.$$.$el.eventRect.style("cursor", "pointer");
   };
-
   _proto.findClosest = function findClosest(values, pos) {
-    var _this2 = this,
-        $$ = this.$$;
-
+    var _this2 = this;
+    const $$ = this.$$;
     return values.filter(function (v) {
+      _newArrowCheck(this, _this2);
       return v && !$$.isBarType(v.id);
-    }).reduce(function (acc, cur) {
-      var d = $$.dist(cur, pos);
-      return d < _this2.getBubbleR(cur) ? cur : acc;
-    }, 0);
+    }.bind(this)).reduce(function (acc, cur) {
+      _newArrowCheck(this, _this2);
+      const d = $$.dist(cur, pos);
+      return d < this.getBubbleR(cur) ? cur : acc;
+    }.bind(this), 0);
   };
-
   _proto.getBubbleR = function getBubbleR(d) {
-    var _this3 = this,
-        _this$options = this.options,
-        minR = _this$options.minR,
-        maxR = _this$options.maxR,
-        curVal = this.getZData(d);
-
+    var _this3 = this;
+    const _this$options = this.options,
+      minR = _this$options.minR,
+      maxR = _this$options.maxR,
+      curVal = this.getZData(d);
     if (!curVal) return minR;
-
-    var _this$$$$data$targets = this.$$.data.targets.reduce(function (_ref, cur) {
-      var accMin = _ref[0],
-          accMax = _ref[1],
-          val = _this3.getZData(cur.values[0]);
-
-      return [Math.min(accMin, val), Math.max(accMax, val)];
-    }, [1e4, 0]),
-        min = _this$$$$data$targets[0],
-        max = _this$$$$data$targets[1],
-        size = min > 0 && max === min ? 0 : curVal / max;
-
+    const _this$$$$data$targets = this.$$.data.targets.reduce(function (_ref, cur) {
+        let accMin = _ref[0],
+          accMax = _ref[1];
+        _newArrowCheck(this, _this3);
+        const val = this.getZData(cur.values[0]);
+        return [Math.min(accMin, val), Math.max(accMax, val)];
+      }.bind(this), [1e4, 0]),
+      min = _this$$$$data$targets[0],
+      max = _this$$$$data$targets[1],
+      size = min > 0 && max === min ? 0 : curVal / max;
     return Math.abs(size) * (maxR - minR) + minR;
   };
-
   _proto.getZData = function getZData(d) {
     return this.$$.isBubbleZType(d) ? this.$$.getBubbleZData(d.value, "z") : d.value;
   };
-
   return BubbleCompare;
 }(Plugin);
-
 BubbleCompare.version = "0.0.1";
 
 }();
