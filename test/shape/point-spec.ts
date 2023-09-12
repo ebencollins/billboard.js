@@ -6,7 +6,7 @@
 /* global describe, beforeEach, it, expect */
 import {expect} from "chai";
 import util from "../assets/util";
-import CLASS from "../../src/config/classes";
+import {$CIRCLE} from "../../src/config/classes";
 
 describe("SHAPE POINT", () => {
 	let chart;
@@ -158,13 +158,13 @@ describe("SHAPE POINT", () => {
 
 		it("newly added points shouldn't be transitioning from the top/left", done => {
 			const main = chart.$.main;
-			const pos = [];
+			const pos: number[] = [];
 			let point;
 			let interval;
 
 			setTimeout(() => {
 				interval = setInterval(() => {
-					point = main.select(`.${CLASS.circles}-data2 .${CLASS.circle}-3`);
+					point = main.select(`.${$CIRCLE.circles}-data2 .${$CIRCLE.circle}-3`);
 					pos.push(+point.attr("cx"));
 				}, 20);
 
@@ -189,6 +189,23 @@ describe("SHAPE POINT", () => {
 	});
 
 	describe("point sensitivity", () => {
+		function checkHover({circle, eventRect}, values, index, sensitivity = 0) {
+			const node = circle.nodes()[index];
+			const x = +node.getAttribute("cx");
+			const y = +node.getAttribute("cy");
+			const r = +node.getAttribute("r");
+
+			util.hoverChart(chart, "mousemove", {
+				clientX: x + (sensitivity || r),
+				clientY: y
+			});
+
+			expect(+chart.$.tooltip.select(".value").text())
+				.to.be.equal(values[index]);
+
+			expect(eventRect.style("cursor")).to.be.equal("pointer");
+		}
+
 		before(() => {
 			args = {
 				size: {
@@ -229,6 +246,92 @@ describe("SHAPE POINT", () => {
 			});
 
 			expect(chart.$.tooltip.selectAll(".name").size()).to.be.equal(1);
+		});
+
+		it("set options point.sensitivity='radius'", () => {
+			args = {
+				data: {
+				  columns: [
+					  ["data1", 10, 100, 300]
+				  ],
+				  type: "bubble"
+				},
+				point: {
+					sensitivity: "radius"
+				},
+				axis: {
+					x: {
+						type: "category"
+					}
+				}
+			};
+		});
+
+		it("check when point.sensitivity='radius'", done => {
+			const {$el} = chart.internal;
+			const values = chart.data.values("data1");
+
+			new Promise((resolve, reject) => {
+				checkHover($el, values, 0);
+
+				setTimeout(resolve, 300);
+			}).then(() => {
+				return new Promise((resolve, reject) => {
+					checkHover($el, values, 1);
+
+					setTimeout(resolve, 300);
+				});
+			}).then(() => {
+				return new Promise((resolve, reject) => {
+					checkHover($el, values, 2);
+
+					setTimeout(resolve, 300);
+				});
+			}).then(() => {
+				done();
+			});
+		});
+
+		it("set options point.sensitivity=Function", () => {
+			args.point.sensitivity = function(d) {
+				const {r, value} = d;
+				
+				// check callback call context
+				expect(this === chart).to.be.true;
+
+				if (value === 100) {
+				  return 5;
+				} else if (value === 300) {
+				  return 15;
+				} else {
+					return r;
+				}
+			};
+		});
+
+		it("check when point.sensitivity=Function", done => {
+			const {$el} = chart.internal;
+			const values = chart.data.values("data1");
+
+			new Promise((resolve, reject) => {
+				checkHover($el, values, 0);
+
+				setTimeout(resolve, 300);
+			}).then(() => {
+				return new Promise((resolve, reject) => {
+					checkHover($el, values, 1, 5);
+
+					setTimeout(resolve, 300);
+				});
+			}).then(() => {
+				return new Promise((resolve, reject) => {
+					checkHover($el, values, 2, 15);
+
+					setTimeout(resolve, 300);
+				});
+			}).then(() => {
+				done();
+			});
 		});
 	});
 
@@ -370,6 +473,38 @@ describe("SHAPE POINT", () => {
 				done();
 			});
 		});
+
+		it("set option: data.type=bubble", () => {
+			args.data.type = "bubble";
+		});
+
+		it("should render bubble circles", done => {
+			setTimeout(() => {
+				chart.$.circles.each(function() {
+					expect(+this.style.opacity).to.not.be.equal(0);
+					expect(+this.getAttribute("cx") > 0).to.be.true;
+					expect(+this.getAttribute("cy") > 0).to.be.true;
+				});
+
+				done();
+			}, 500);
+		});
+
+		it("set option: data.type=scatter", () => {
+			args.data.type = "scatter";
+		});
+
+		it("should render scatter circles", done => {
+			setTimeout(() => {
+				chart.$.circles.each(function() {
+					expect(+this.style.opacity).to.not.be.equal(0);
+					expect(+this.getAttribute("cx") > 0).to.be.true;
+					expect(+this.getAttribute("cy") > 0).to.be.true;
+				});
+
+				done();
+			}, 500);
+		});
 	});
 
 	describe("point.opacity", () => {
@@ -409,4 +544,155 @@ describe("SHAPE POINT", () => {
 			});
 		});
 	});
+
+	describe("point expand", () => {
+		before(() => {
+			args = {
+				data: {
+					columns: [
+						["data1", 30, 200, 100, 400, 150, 250],
+						["data2", 230, 280, 320, 218, 250, 150]
+					],
+					type: "line",
+					selection: {
+						enabled: true,
+						draggable: true
+					}
+				  },
+				  point:{
+					r: 0,
+					focus: {
+						expand: {
+							r: 3.5
+						}
+					}
+				}
+			};
+		});
+
+		it("should point r attribute to be set to 0(zero).", () => {
+			// when
+			chart.tooltip.show({ x: 0 });
+			chart.tooltip.show({ x: 1 });
+
+			chart.$.circles.filter(".bb-circle-0").each(function() {
+				expect(+this.getAttribute("r")).to.be.equal(0);
+			});
+		});
+	});
+
+	describe("point radialGradient", () => {
+		before(() => {
+			args = {
+				data: {
+					columns: [
+						["data1", 30, 200, 100, 400, 100, 250],
+						["data2", 130, 100, 130, 200, 150, 50]
+					],
+					type: "scatter"
+				},
+				point: {
+					r: 20,
+					radialGradient: true,
+					opacity: 1,
+					sensitivity: "radius"
+				},
+				axis: {
+					x: {
+						type: "category"
+					}
+				}
+			};
+		});
+
+		it("should defs correctly generated", () => {
+			const {$: {circles}, internal: {$el}} = chart;
+			const radialGradientDefs = $el.defs.selectAll("radialGradient");
+			const ids = chart.data().map(v => v.id);
+			const rx = /.+-(\w+\d+)$/;
+			const radialGradientIds: string[] = [];
+
+			radialGradientDefs.each(function(d, i) {
+				const id = this.id.replace(rx, "$1");
+
+				radialGradientIds.push(this.id);
+
+				expect(id).to.be.equal(ids[i]);
+				expect(this.querySelectorAll("stop").length).to.be.equal(2);				
+			});
+
+			ids.forEach((id, i) => {
+				const radialId = radialGradientIds[i];
+
+				circles.filter(d => d.id === id).each(function() {
+					expect(this.style.fill.indexOf(radialId) > -1).to.be.true;					
+				});
+			});
+		});
+
+		it("set options", () => {
+			args = {
+				data: {
+					columns: [
+						["data1", 30, 200, 100, 400, 100, 250],
+						["data2", 130, 100, 130, 200, 150, 50]
+					],
+					type: "bubble"
+				},
+				point: {
+					r: 10,
+					radialGradient: {
+						cx: 0.5,
+						cy: 0.5,
+						r: 0.5,
+						stops: [
+							[0.3, "#fff", 0.8],
+							[0.6, function(id) { return id === "data1" ? this.color(id) : "green"; }, 0.35],
+							[1, null, 1]
+						]
+					},
+					opacity: 1,
+					sensitivity: "radius"
+				}
+			};
+		});
+
+		it("should radialGradient options are correctly specified.", () => {
+			const {$: {circles}, internal: {$el}} = chart;
+			const radialGradientDefs = $el.defs.selectAll("radialGradient");
+			const ids = chart.data().map(v => v.id);
+			const rx = /.+-(\w+\d+)$/;
+			const radialGradientIds: string[] = [];
+			const options = args.point.radialGradient;
+
+			radialGradientDefs.each(function(d, i) {
+				const id = this.id.replace(rx, "$1");
+
+				radialGradientIds.push(this.id);
+
+				expect(id).to.be.equal(ids[i]);
+
+				expect(+this.getAttribute("cx")).to.be.equal(options.cx);
+				expect(+this.getAttribute("cy")).to.be.equal(options.cy);
+				expect(+this.getAttribute("r")).to.be.equal(options.r);
+				
+				this.querySelectorAll("stop").forEach((stop, i) => {
+					const [offset, color, opacity] = options.stops[i];
+
+					expect(+stop.getAttribute("offset")).to.be.equal(offset);
+					expect(stop.getAttribute("stop-color")).to.be.equal(typeof color === "function" ? color.bind(chart)(id) : color ?? chart.color(id));
+					expect(+stop.getAttribute("stop-opacity")).to.be.equal(opacity);
+				});
+			});
+
+			ids.forEach((id, i) => {
+				const radialId = radialGradientIds[i];
+
+				circles.filter(d => d.id === id).each(function() {
+					expect(this.style.fill.indexOf(radialId) > -1).to.be.true;
+				});
+			});
+		});
+	});
 });
+0

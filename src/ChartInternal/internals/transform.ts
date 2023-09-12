@@ -2,10 +2,10 @@
  * Copyright (c) 2017 ~ present NAVER Corp.
  * billboard.js project is licensed under the MIT license
  */
-import CLASS from "../../config/classes";
+import {$ARC, $AXIS} from "../../config/classes";
 import {asHalfPixel} from "../../module/util";
 
-type TranslateParam = "main" | "context" | "legend" | "x" | "y" | "y2" | "subX" | "arc" | "radar";
+type TranslateParam = "main" | "context" | "legend" | "x" | "y" | "y2" | "subX" | "arc" | "radar" | "polar";
 
 export default {
 	getTranslate(target: TranslateParam, index = 0): string {
@@ -37,11 +37,14 @@ export default {
 			y = isRotated ? state.height + padding : 0;
 		} else if (target === "y2") {
 			x = isRotated ? 0 : state.width + padding;
-			y = isRotated ? 1 - padding : 0;
+			y = isRotated && padding ? 1 - padding : 0;
 		} else if (target === "subX") {
 			x = 0;
 			y = isRotated ? 0 : state.height2;
 		} else if (target === "arc") {
+			x = state.arcWidth / 2;
+			y = state.arcHeight / 2;
+		} else if (target === "polar") {
 			x = state.arcWidth / 2;
 			y = state.arcHeight / 2;
 		} else if (target === "radar") {
@@ -60,16 +63,16 @@ export default {
 
 		const xAxis = transitions?.axisX ?
 			transitions.axisX :
-			$T(main.select(`.${CLASS.axisX}`), withTransition);
+			$T(main.select(`.${$AXIS.axisX}`), withTransition);
 
 		const yAxis = transitions?.axisY ?
 			transitions.axisY :
-			$T(main.select(`.${CLASS.axisY}`), withTransition);
+			$T(main.select(`.${$AXIS.axisY}`), withTransition);
 
 
 		const y2Axis = transitions?.axisY2 ?
 			transitions.axisY2 :
-			$T(main.select(`.${CLASS.axisY2}`), withTransition);
+			$T(main.select(`.${$AXIS.axisY2}`), withTransition);
 
 		$T(main, withTransition)
 			.attr("transform", $$.getTranslate("main"));
@@ -78,15 +81,15 @@ export default {
 		yAxis.attr("transform", $$.getTranslate("y"));
 		y2Axis.attr("transform", $$.getTranslate("y2"));
 
-		main.select(`.${CLASS.chartArcs}`)
+		main.select(`.${$ARC.chartArcs}`)
 			.attr("transform", $$.getTranslate("arc"));
 	},
 
 	transformAll(withTransition: boolean, transitions): void {
 		const $$ = this;
-		const {config, state: {hasAxis}, $el} = $$;
+		const {config, state: {hasAxis, hasTreemap}, $el} = $$;
 
-		$$.transformMain(withTransition, transitions);
+		!hasTreemap && $$.transformMain(withTransition, transitions);
 
 		hasAxis && config.subchart_show &&
 			$$.transformContext(withTransition, transitions);

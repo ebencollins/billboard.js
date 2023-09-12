@@ -19,10 +19,12 @@ export const TYPE = {
 	GAUGE: "gauge",
 	LINE: "line",
 	PIE: "pie",
+	POLAR: "polar",
 	RADAR: "radar",
 	SCATTER: "scatter",
 	SPLINE: "spline",
-	STEP: "step"
+	STEP: "step",
+	TREEMAP: "treemap"
 };
 
 /**
@@ -42,10 +44,12 @@ export const TYPE_METHOD_NEEDED = {
 	GAUGE: "initArc",
 	LINE: "initLine",
 	PIE: "initArc",
+	POLAR: "initPolar",
 	RADAR: "initCircle",
 	SCATTER: "initCircle",
 	SPLINE: "initLine",
-	STEP: "initLine"
+	STEP: "initLine",
+	TREEMAP: "initTreemap"
 };
 
 /**
@@ -68,6 +72,7 @@ export const TYPE_BY_CATEGORY = {
 		TYPE.PIE,
 		TYPE.DONUT,
 		TYPE.GAUGE,
+		TYPE.POLAR,
 		TYPE.RADAR
 	],
 	Line: [

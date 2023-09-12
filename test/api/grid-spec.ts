@@ -6,18 +6,21 @@
 import {expect} from "chai";
 import {select as d3Select} from "d3-selection";
 import util from "../assets/util";
-import CLASS from "../../src/config/classes";
+import {$GRID} from "../../src/config/classes";
 
 describe("API grid", function() {
 	let chart;
 
 	before(() => {
 		return new Promise((resolve) => {
-				chart = util.generate({
+			chart = util.generate({
 				data: {
 					columns: [
 						["data1", 30, 200, 100, 400, 150, 250]
 					]
+				},
+				transition: {
+					duration: 0
 				},
 				onrendered: resolve
 			});
@@ -36,16 +39,14 @@ describe("API grid", function() {
 					text: "Pressure High"
 				}];
 
-			let grids;
-
 			// add grid
 			chart.ygrids.add(expectedGrids);
 
+			let grids = main.selectAll(`.${$GRID.ygridLine}`);
+
+			expect(grids.size()).to.be.equal(expectedGrids.length);
+
 			setTimeout(() => {
-				grids = main.selectAll(`.${CLASS.ygridLine}`);
-
-				expect(grids.size()).to.be.equal(expectedGrids.length);
-
 				grids.each(function (d, i) {
 					const y = +d3Select(this).select("line").attr("y1");
 					const text = d3Select(this).select("text").text();
@@ -59,12 +60,10 @@ describe("API grid", function() {
 				// remove grid
 				chart.ygrids.remove(expectedGrids);
 
-				setTimeout(() => {
-					grids = main.selectAll(`.${CLASS.ygridLine}`);
+				grids = main.selectAll(`.${$GRID.ygridLine}`);
 
-					expect(grids.size()).to.be.equal(0);
-					done();
-				}, 500);
+				expect(grids.size()).to.be.equal(0);
+				done();
 			}, 500);
 		});
 
@@ -92,7 +91,7 @@ describe("API grid", function() {
 
 				// for xgrids()
 				setTimeout(() => {
-					grids = main.selectAll(`.${CLASS.xgridLine}`);
+					grids = main.selectAll(`.${$GRID.xgridLine}`);
 
 					expect(grids.size()).to.be.equal(expectedGrids.length);
 
@@ -116,7 +115,7 @@ describe("API grid", function() {
 
 					// for xgrids.remove()
 					setTimeout(() => {
-						grids = main.selectAll(`.${CLASS.xgridLine}`);
+						grids = main.selectAll(`.${$GRID.xgridLine}`);
 
 						expect(grids.size()).to.be.equal(0);
 						done();
@@ -138,29 +137,66 @@ describe("API grid", function() {
 					y: {
 						lines: [{value: 1, class: "test"}]
 					}
+				},
+				transition: {
+					duration: 0
 				}
 			});
 		});
 
-		it("should update y grids", done => {
+		it("should update x grids", () => {
 			const gridData = {
 				value: 2, text: "grid text", position: "middle", class:"some-class"
 			};
 
 			chart.xgrids([gridData]);
 
-			setTimeout(() => {
-				const xgrid = chart.$.main.select(`.${CLASS.xgridLine}`);
+			const xgrid = chart.$.main.select(`.${$GRID.xgridLine}`);
 
-				expect(xgrid.classed(gridData.class)).to.be.true;
+			expect(xgrid.classed(gridData.class)).to.be.true;
 
-				const text = xgrid.select("text");
+			const text = xgrid.select("text");
 
-				expect(text.text()).to.be.equal(gridData.text);
-				expect(text.attr("text-anchor")).to.be.equal(gridData.position);
+			expect(text.text()).to.be.equal(gridData.text);
+			expect(text.attr("text-anchor")).to.be.equal(gridData.position);
 
-				done();
-			}, 500);
+			chart.xgrids.remove();
+		});
+
+		it("using .xgrids.add()", () => {
+			const {$el: {gridLines}, scale: {x}} = chart.internal;
+			const gridData = [
+				{value: 2, text: "Label 2"},
+				{value: 3, text: "Label 3"},
+				{value: 4, text: "Label 4"}
+			];
+
+			chart.xgrids.add(
+				gridData[0]
+			);
+
+			expect(gridLines.x.size()).to.be.equal(1);
+
+			gridLines.x.each(function(d) {
+				const x1 = +this.querySelector("line").getAttribute("x1");
+
+				expect(x1).to.be.equal(x(d.value));
+				expect(this.querySelector("text").textContent).to.be.equal(d.text);
+			});
+
+			// when adding some duplicated xgrids
+			chart.xgrids.add(gridData.slice(1));
+
+			expect(gridLines.x.size()).to.be.equal(3);
+
+			gridLines.x.each(function(d) {
+				const x1 = +this.querySelector("line").getAttribute("x1");
+
+				expect(x1).to.be.equal(x(d.value));
+				expect(this.querySelector("text").textContent).to.be.equal(d.text);
+			});
+
+			expect(chart.xgrids()).to.be.deep.equal(gridData);
 		});
 	});
 
@@ -210,29 +246,28 @@ describe("API grid", function() {
 					y: {
 						lines: [{value: 150, class: "test"}]
 					}
+				},
+				transition: {
+					duration: 0
 				}
 			});
 		});
 
-		it("should update y grids", done => {
+		it("should update y grids", () => {
 			const gridData = {
 				value: 250, text: "grid text", position: "start", class:"some-class"
 			};
 
 			chart.ygrids([gridData]);
 
-			setTimeout(() => {
-				const ygrid = chart.$.main.select(`.${CLASS.ygridLine}`);
+			const ygrid = chart.$.main.select(`.${$GRID.ygridLine}`);
 
-				expect(ygrid.classed(gridData.class)).to.be.true;
+			expect(ygrid.classed(gridData.class)).to.be.true;
 
-				const text = ygrid.select("text");
+			const text = ygrid.select("text");
 
-				expect(text.text()).to.be.equal(gridData.text);
-				expect(text.attr("text-anchor")).to.be.equal(gridData.position);
-
-				done();
-			}, 500);
+			expect(text.text()).to.be.equal(gridData.text);
+			expect(text.attr("text-anchor")).to.be.equal(gridData.position);
 		});
 	});
 });

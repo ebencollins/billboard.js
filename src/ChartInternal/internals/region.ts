@@ -3,19 +3,19 @@
  * billboard.js project is licensed under the MIT license
  */
 import {select as d3Select} from "d3-selection"; // selection
-import CLASS from "../../config/classes";
+import {$REGION} from "../../config/classes";
 import {isValue, parseDate} from "../../module/util";
-import {AxisType} from "../../../types/types";
+import type {AxisType, RegionsType} from "../../../types/types";
 
 export default {
-	initRegion() {
+	initRegion(): void {
 		const $$ = this;
 		const {$el} = $$;
 
 		$el.region.main = $el.main
 			.insert("g", ":first-child")
 			.attr("clip-path", $$.state.clip.path)
-			.attr("class", CLASS.regions);
+			.attr("class", $REGION.regions);
 	},
 
 	updateRegion(): void {
@@ -28,38 +28,60 @@ export default {
 
 		// hide if arc type
 		region.main.style("visibility", $$.hasArcType() ? "hidden" : null);
-		// select <g> element
 
-		let list = region.main
-			.selectAll(`.${CLASS.region}`)
+		// select <g> element
+		const regions = region.main
+			.selectAll(`.${$REGION.region}`)
 			.data(config.regions);
 
-		$T(list.exit())
+		$T(regions.exit())
 			.style("opacity", "0")
 			.remove();
 
-		list = list.enter()
-			.append("g")
-			.merge(list)
-			.attr("class", $$.classRegion.bind($$));
+		const regionsEnter = regions
+			.enter()
+			.append("g");
 
-		list
+		regionsEnter
 			.append("rect")
 			.style("fill-opacity", "0");
 
-		region.list = list;
+		region.list = regionsEnter
+			.merge(regions)
+			.attr("class", $$.classRegion.bind($$));
+
+		region.list.each(function(d) {
+			const g = d3Select(this);
+
+			if (g.select("text").empty() && d.label?.text) {
+				d3Select(this).append("text")
+					.style("opacity", "0");
+			}
+		});
 	},
 
-	redrawRegion(withTransition) {
+	redrawRegion(withTransition: boolean) {
 		const $$ = this;
 		const {$el: {region}, $T} = $$;
 		let regions = region.list.select("rect");
+		let label = region.list.selectAll("text");
 
 		regions = $T(regions, withTransition)
 			.attr("x", $$.regionX.bind($$))
 			.attr("y", $$.regionY.bind($$))
 			.attr("width", $$.regionWidth.bind($$))
 			.attr("height", $$.regionHeight.bind($$));
+
+		label = $T(label, withTransition)
+			.attr("transform", d => {
+				const {x = 0, y = 0, rotated = false} = d.label ?? {};
+
+				return `translate(${$$.regionX.bind($$)(d) + x}, ${$$.regionY.bind($$)(d) + y})${rotated ? ` rotate(-90)` : ``}`;
+			})
+			.attr("text-anchor", d => (d.label?.rotated ? "end" : null))
+			.attr("dy", "1em")
+			.style("fill", d => d.label?.color ?? null)
+			.text(d => d.label?.text);
 
 		return [
 			regions
@@ -69,11 +91,12 @@ export default {
 					d3Select(this.parentNode)
 						.selectAll("rect:not([x])")
 						.remove();
-				})
+				}),
+			label.style("opacity", null)
 		];
 	},
 
-	getRegionXY(type: AxisType, d): number {
+	getRegionXY(type: AxisType, d: RegionsType): number {
 		const $$ = this;
 		const {config, scale} = $$;
 		const isRotated = config.axis_rotated;
@@ -99,15 +122,15 @@ export default {
 		return pos;
 	},
 
-	regionX(d): number {
+	regionX(d: RegionsType): number {
 		return this.getRegionXY("x", d);
 	},
 
-	regionY(d): number {
+	regionY(d: RegionsType): number {
 		return this.getRegionXY("y", d);
 	},
 
-	getRegionSize(type, d): number {
+	getRegionSize(type: "width" | "height", d: RegionsType): number {
 		const $$ = this;
 		const {config, scale, state} = $$;
 		const isRotated = config.axis_rotated;
@@ -134,15 +157,15 @@ export default {
 		return end < start ? 0 : end - start;
 	},
 
-	regionWidth(d): number {
+	regionWidth(d: RegionsType): number {
 		return this.getRegionSize("width", d);
 	},
 
-	regionHeight(d): number {
+	regionHeight(d: RegionsType): number {
 		return this.getRegionSize("height", d);
 	},
 
-	isRegionOnX(d): boolean {
+	isRegionOnX(d: RegionsType): boolean {
 		return !d.axis || d.axis === "x";
 	},
 };

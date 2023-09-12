@@ -6,7 +6,7 @@ import {
 	select as d3Select,
 	selectAll as d3SelectAll
 } from "d3-selection";
-import CLASS from "../../config/classes";
+import {$AXIS, $COMMON, $FOCUS, $GRID} from "../../config/classes";
 import {isArray, isValue} from "../../module/util";
 
 // Grid position and text anchor helpers
@@ -72,12 +72,12 @@ export default {
 		const {config, state: {clip}, $el} = $$;
 
 		if (config.grid_x_lines.length || config.grid_y_lines.length) {
-			$el.gridLines.main = $el.main.insert("g", `.${CLASS.chart}${config.grid_lines_front ? " + *" : ""}`)
+			$el.gridLines.main = $el.main.insert("g", `.${$COMMON.chart}${config.grid_lines_front ? " + *" : ""}`)
 				.attr("clip-path", clip.pathGrid)
-				.attr("class", `${CLASS.grid} ${CLASS.gridLines}`);
+				.attr("class", `${$GRID.grid} ${$GRID.gridLines}`);
 
-			$el.gridLines.main.append("g").attr("class", CLASS.xgridLines);
-			$el.gridLines.main.append("g").attr("class", CLASS.ygridLines);
+			$el.gridLines.main.append("g").attr("class", $GRID.xgridLines);
+			$el.gridLines.main.append("g").attr("class", $GRID.ygridLines);
 
 			$el.gridLines.x = d3SelectAll([]);
 		}
@@ -105,15 +105,15 @@ export default {
 			"y2": state.height,
 		};
 
-		grid.x = main.select(`.${CLASS.xgrids}`)
-			.selectAll(`.${CLASS.xgrid}`)
+		grid.x = main.select(`.${$GRID.xgrids}`)
+			.selectAll(`.${$GRID.xgrid}`)
 			.data(xgridData);
 
 		grid.x.exit().remove();
 
 		grid.x = grid.x.enter()
 			.append("line")
-			.attr("class", CLASS.xgrid)
+			.attr("class", $GRID.xgrid)
 			.merge(grid.x);
 
 		if (!withoutUpdate) {
@@ -133,13 +133,14 @@ export default {
 
 	updateYGrid(): void {
 		const $$ = this;
-		const {config, state, $el: {grid, main}} = $$;
+		const {axis, config, scale, state, $el: {grid, main}} = $$;
 		const isRotated = config.axis_rotated;
-		const gridValues = $$.axis.y.tickValues() || $$.scale.y.ticks(config.grid_y_ticks);
-		const pos = d => Math.ceil($$.scale.y(d));
+		const pos = d => Math.ceil(scale.y(d));
+		const gridValues =
+			axis.y.getGeneratedTicks(config.grid_y_ticks) || $$.scale.y.ticks(config.grid_y_ticks);
 
-		grid.y = main.select(`.${CLASS.ygrids}`)
-			.selectAll(`.${CLASS.ygrid}`)
+		grid.y = main.select(`.${$GRID.ygrids}`)
+			.selectAll(`.${$GRID.ygrid}`)
 			.data(gridValues);
 
 		grid.y.exit().remove();
@@ -147,7 +148,7 @@ export default {
 		grid.y = grid.y
 			.enter()
 			.append("line")
-			.attr("class", CLASS.ygrid)
+			.attr("class", $GRID.ygrid)
 			.merge(grid.y);
 
 		grid.y.attr("x1", isRotated ? pos : 0)
@@ -168,109 +169,65 @@ export default {
 		grid.main.style("visibility", $$.hasArcType() ? "hidden" : null);
 
 		$$.hideGridFocus();
-		$$.updateXGridLines();
-		$$.updateYGridLines();
+		$$.updateGridLines("x");
+		$$.updateGridLines("y");
 	},
 
 	/**
-	 * Update X Grid lines
+	 * Update Grid lines
+	 * @param {string} type x | y
 	 * @private
 	 */
-	updateXGridLines(): void {
+	updateGridLines(type: "x" | "y"): void {
 		const $$ = this;
 		const {config, $el: {gridLines, main}, $T} = $$;
 		const isRotated = config.axis_rotated;
+		const isX = type === "x";
 
-		config.grid_x_show && $$.updateXGrid();
+		config[`grid_${type}_show`] && $$[`update${type.toUpperCase()}Grid`]();
 
-		let xLines = main.select(`.${CLASS.xgridLines}`)
-			.selectAll(`.${CLASS.xgridLine}`)
-			.data(config.grid_x_lines);
+		let lines = main.select(`.${$GRID[`${type}gridLines`]}`)
+			.selectAll(`.${$GRID[`${type}gridLine`]}`)
+			.data(config[`grid_${type}_lines`]);
 
 		// exit
-		$T(xLines.exit())
+		$T(lines.exit())
 			.style("opacity", "0")
 			.remove();
 
 		// enter
-		const xgridLine = xLines.enter().append("g");
+		const gridLine = lines.enter().append("g");
 
-		xgridLine.append("line")
+		gridLine.append("line")
 			.style("opacity", "0");
 
-		xgridLine.append("text")
-			.attr("transform", isRotated ? "" : "rotate(-90)")
-			.attr("dy", -5)
-			.style("opacity", "0");
+		lines = gridLine.merge(lines);
 
-		xLines = xgridLine.merge(xLines);
+		lines.each(function(d) {
+			const g = d3Select(this);
 
-		$T(xLines
-			.attr("class", d => `${CLASS.xgridLine} ${d.class || ""}`.trim())
+			if (g.select("text").empty() && d.text) {
+				g.append("text")
+					.style("opacity", "0");
+			}
+		});
+
+		$T(lines
+			.attr("class", d => `${$GRID[`${type}gridLine`]} ${d.class || ""}`.trim())
 			.select("text")
 			.attr("text-anchor", getGridTextAnchor)
+			.attr("transform", () => (isX ?
+				(isRotated ? null : "rotate(-90)") :
+				(isRotated ? "rotate(-90)" : null)
+			))
 			.attr("dx", getGridTextDx)
-		)
-			.text(d => d.text)
-			.style("opacity", null);
-
-		gridLines.x = xLines;
-	},
-
-	/**
-	 * Update Y Grid lines
-	 * @private
-	 */
-	updateYGridLines(): void {
-		const $$ = this;
-		const {config, state: {width, height}, $el, $T} = $$;
-		const isRotated = config.axis_rotated;
-
-		config.grid_y_show && $$.updateYGrid();
-
-		let ygridLines = $el.main.select(`.${CLASS.ygridLines}`)
-			.selectAll(`.${CLASS.ygridLine}`)
-			.data(config.grid_y_lines);
-
-		// exit
-		$T(ygridLines.exit())
-			.style("opacity", "0")
-			.remove();
-
-		// enter
-		const ygridLine = ygridLines.enter().append("g");
-
-		ygridLine.append("line")
-			.style("opacity", "0");
-
-		ygridLine.append("text")
-			.attr("transform", isRotated ? "rotate(-90)" : "")
-			.style("opacity", "0");
-
-		ygridLines = ygridLine.merge(ygridLines);
-
-		// update
-		const yv = $$.yv.bind($$);
-
-		$T(ygridLines
-			.attr("class", d => `${CLASS.ygridLine} ${d.class || ""}`.trim())
-			.select("line"))
-			.attr("x1", isRotated ? yv : 0)
-			.attr("x2", isRotated ? yv : width)
-			.attr("y1", isRotated ? 0 : yv)
-			.attr("y2", isRotated ? height : yv)
-			.style("opacity", null);
-
-		$T(ygridLines.select("text")
-			.attr("text-anchor", getGridTextAnchor)
-			.attr("dx", getGridTextDx))
 			.attr("dy", -5)
-			.attr("x", getGridTextX(isRotated, width, height))
-			.attr("y", yv)
-			.text(d => d.text)
-			.style("opacity", null);
+		)
+			.text(function(d) {
+				return d.text ?? this.remove();
+			});
 
-		$el.gridLines.y = ygridLines;
+		gridLines[type] = lines;
 	},
 
 	redrawGrid(withTransition: boolean): any[] {
@@ -282,24 +239,39 @@ export default {
 			$T
 		} = $$;
 		const xv = $$.xv.bind($$);
+		const yv = $$.yv.bind($$);
 
-		let lines = gridLines.x.select("line");
-		let texts = gridLines.x.select("text");
+		let xLines = gridLines.x.select("line");
+		let xTexts = gridLines.x.select("text");
 
-		lines = $T(lines, withTransition)
+		let yLines = gridLines.y.select("line");
+		let yTexts = gridLines.y.select("text");
+
+		xLines = $T(xLines, withTransition)
 			.attr("x1", isRotated ? 0 : xv)
 			.attr("x2", isRotated ? width : xv)
 			.attr("y1", isRotated ? xv : 0)
 			.attr("y2", isRotated ? xv : height);
 
-		texts = $T(texts, withTransition)
+		xTexts = $T(xTexts, withTransition)
 			.attr("x", getGridTextX(!isRotated, width, height))
-			.attr("y", xv)
-			.text(d => d.text);
+			.attr("y", xv);
+
+		yLines = $T(yLines, withTransition)
+			.attr("x1", isRotated ? yv : 0)
+			.attr("x2", isRotated ? yv : width)
+			.attr("y1", isRotated ? 0 : yv)
+			.attr("y2", isRotated ? height : yv);
+
+		yTexts = $T(yTexts, withTransition)
+			.attr("x", getGridTextX(isRotated, width, height))
+			.attr("y", yv);
 
 		return [
-			lines.style("opacity", null),
-			texts.style("opacity", null)
+			xLines.style("opacity", null),
+			xTexts.style("opacity", null),
+			yLines.style("opacity", null),
+			yTexts.style("opacity", null)
 		];
 	},
 
@@ -307,32 +279,32 @@ export default {
 		const $$ = this;
 		const {config, state: {clip}, $el} = $$;
 		const isFront = config.grid_front;
-		const className = `.${CLASS[isFront && $el.gridLines.main ? "gridLines" : "chart"]}${isFront ? " + *" : ""}`;
+		const className = `.${isFront && $el.gridLines.main ? $GRID.gridLines : $COMMON.chart}${isFront ? " + *" : ""}`;
 
 		const grid = $el.main.insert("g", className)
 			.attr("clip-path", clip.pathGrid)
-			.attr("class", CLASS.grid);
+			.attr("class", $GRID.grid);
 
 		$el.grid.main = grid;
 
 		config.grid_x_show &&
-			grid.append("g").attr("class", CLASS.xgrids);
+			grid.append("g").attr("class", $GRID.xgrids);
 
 		config.grid_y_show &&
-			grid.append("g").attr("class", CLASS.ygrids);
+			grid.append("g").attr("class", $GRID.ygrids);
 
 		if (config.interaction_enabled && config.grid_focus_show) {
 			grid.append("g")
-				.attr("class", CLASS.xgridFocus)
+				.attr("class", $FOCUS.xgridFocus)
 				.append("line")
-				.attr("class", CLASS.xgridFocus);
+				.attr("class", $FOCUS.xgridFocus);
 
 			// to show xy focus grid line, should be 'tooltip.grouped=false'
 			if (config.grid_focus_y && !config.tooltip_grouped) {
 				grid.append("g")
-					.attr("class", CLASS.ygridFocus)
+					.attr("class", $FOCUS.ygridFocus)
 					.append("line")
-					.attr("class", CLASS.ygridFocus);
+					.attr("class", $FOCUS.ygridFocus);
 			}
 		}
 	},
@@ -346,7 +318,7 @@ export default {
 		const $$ = this;
 		const {config, state: {width, height}} = $$;
 		const isRotated = config.axis_rotated;
-		const focusEl = $$.$el.main.selectAll(`line.${CLASS.xgridFocus}, line.${CLASS.ygridFocus}`);
+		const focusEl = $$.$el.main.selectAll(`line.${$FOCUS.xgridFocus}, line.${$FOCUS.ygridFocus}`);
 
 		const dataToShow = (data || [focusEl.datum()]).filter(d => d && isValue($$.getBaseValue(d)));
 
@@ -369,7 +341,7 @@ export default {
 				};
 				let xy;
 
-				if (el.classed(CLASS.xgridFocus)) {
+				if (el.classed($FOCUS.xgridFocus)) {
 					// will contain 'x1, y1, x2, y2' order
 					xy = isRotated ?
 						[
@@ -413,7 +385,7 @@ export default {
 		const {state: {inputType, resizing}, $el: {main}} = $$;
 
 		if (inputType === "mouse" || !resizing) {
-			main.selectAll(`line.${CLASS.xgridFocus}, line.${CLASS.ygridFocus}`)
+			main.selectAll(`line.${$FOCUS.xgridFocus}, line.${$FOCUS.ygridFocus}`)
 				.style("visibility", "hidden");
 
 			$$.hideCircleFocus?.();
@@ -423,7 +395,7 @@ export default {
 	updateGridFocus(): boolean {
 		const $$ = this;
 		const {state: {inputType, width, height, resizing}, $el: {grid}} = $$;
-		const xgridFocus = grid.main.select(`line.${CLASS.xgridFocus}`);
+		const xgridFocus = grid.main.select(`line.${$FOCUS.xgridFocus}`);
 
 		if (inputType === "touch") {
 			if (xgridFocus.empty()) {
@@ -448,7 +420,7 @@ export default {
 
 	generateGridData(type: string, scale) {
 		const $$ = this;
-		const tickNum = $$.$el.main.select(`.${CLASS.axisX}`)
+		const tickNum = $$.$el.main.select(`.${$AXIS.axisX}`)
 			.selectAll(".tick")
 			.size();
 		let gridData: Date[] = [];
@@ -490,8 +462,8 @@ export default {
 		const {config, $T} = $$;
 		const toRemove = $$.getGridFilterToRemove(params);
 		const toShow = line => !toRemove(line);
-		const classLines = forX ? CLASS.xgridLines : CLASS.ygridLines;
-		const classLine = forX ? CLASS.xgridLine : CLASS.ygridLine;
+		const classLines = forX ? $GRID.xgridLines : $GRID.ygridLines;
+		const classLine = forX ? $GRID.xgridLine : $GRID.ygridLine;
 
 		$T($$.$el.main.select(`.${classLines}`)
 			.selectAll(`.${classLine}`)
@@ -502,5 +474,5 @@ export default {
 		const gridLines = `grid_${forX ? "x" : "y"}_lines`;
 
 		config[gridLines] = config[gridLines].filter(toShow);
-	},
+	}
 };

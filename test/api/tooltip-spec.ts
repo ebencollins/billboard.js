@@ -6,7 +6,7 @@
 import {expect} from "chai";
 import {timeFormat as d3TimeFormat} from "d3-time-format";
 import util from "../assets/util";
-import CLASS from "../../src/config/classes";
+import {$TOOLTIP} from "../../src/config/classes";
 import sinon from "sinon";
 
 describe("API tooltip", () => {
@@ -52,7 +52,7 @@ describe("API tooltip", () => {
 			// check if tooltip data are correctly rendered
 			chart.data().forEach(v => {
 				const id = v.id;
-				const data = tooltip.select(`.${CLASS.tooltipName}-${id}`);
+				const data = tooltip.select(`.${$TOOLTIP.tooltipName}-${id}`);
 				const value = chart.data(id)[0].values[x];
 
 				expect(id).to.be.equal(v.id);
@@ -144,6 +144,88 @@ describe("API tooltip", () => {
 			expect(spy2.called).to.be.true;
 			expect(+chart.$.tooltip.select(".value").text()).to.be.equal(value);
 		});
+
+		it("set options", () => {
+			args = {
+				data: {
+					type: "line",
+					xs: {
+					  "data0": "data0X",
+					  "data1": "data1X",
+					  "data2": "data2X"
+					},
+					columns: [
+						  ["data0X", 1641362431000, 1641362451000],
+						  ["data1X", 1641362431000, 1641362432000],
+						  ["data2X", 1641362432000, 1641362538000],
+						  ["data0", 2, 2],
+						  ["data1", 0, 0],
+						  ["data2", 1, 1]
+					  ]
+				},
+				zoom: {
+					enabled: true,
+					type: "drag"
+				},
+				grid: {
+					x: {
+						show: false
+					},
+					y: {
+						show: true,
+						ticks: 6
+					}
+				},
+				legend: {
+					show: false
+				},
+				axis: {
+				x: {
+					type: "timeseries",
+					tick: {
+						fit: false,
+						format: "%Y-%m-%d %H:%M:%S"
+					}
+				},
+				y: {
+					min: 0,
+					padding: 10
+				}
+				},
+				tooltip: {
+					grouped: false
+				},
+				line: {
+					point: false
+				},
+				point: {
+					show: false,
+					sensitivity: 2
+				},
+				transition: {
+					duration: 0
+				}
+			};
+		});
+
+		it("tooltip.show() should work when zoom in", () => {
+			const {tooltip} = chart.$;
+
+			// when
+			chart.zoom([1641362431000, 1641362451000]);
+
+			chart.tooltip.show({
+				data: {
+					x: 1641362432000,
+					id: "data2",
+					value: 1
+				}
+			});
+
+			expect(tooltip.style("display")).to.be.equal("block");
+			expect(tooltip.select(".name").text()).to.be.equal("data2");
+			expect(+tooltip.select(".value").text()).to.be.equal(1);
+		});
 	});
 
 	describe("for tooltip.grouped=false", () => {
@@ -230,16 +312,33 @@ describe("API tooltip", () => {
 						["data4", 20]
 					],
 					type: "pie",
+				},
+				transition: {
+					duration: 0
 				}
 			};
 		});
 
-		it("should show tooltip correctly", done => {
+		it("should show tooltip correctly using 'index'?", done => {
 			setTimeout(() => {
 				const {tooltip} = chart.$;
 
 				// when
 				chart.tooltip.show({index:2});
+
+				expect(tooltip.select(".name").text()).to.be.equal("data3");
+				expect(tooltip.select(".value").text()).to.be.equal("19.2%");
+
+				done();
+			}, 500);
+		});
+
+		it("should show tooltip correctly using 'id'?", done => {
+			setTimeout(() => {
+				const {tooltip} = chart.$;
+
+				// when
+				chart.tooltip.show({data: {id: "data3"}});
 
 				expect(tooltip.select(".name").text()).to.be.equal("data3");
 				expect(tooltip.select(".value").text()).to.be.equal("19.2%");

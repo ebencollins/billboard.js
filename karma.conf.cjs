@@ -1,5 +1,8 @@
 /* eslint-disable */
 // @ts-nocheck
+// import {webpack} from "webpack";
+// import {platform} from "os";
+
 const webpack = require("webpack");
 const isWin = require("os").platform() === "win32";
 
@@ -45,11 +48,27 @@ module.exports = function(config) {
 			module: {
 				rules: [
 					{
+						test: require.resolve("./src/module/browser.ts"),
+						loader: "exports-loader",
+						options: {
+							type: "module",
+							exports: ["getGlobal", "getFallback"]
+						}
+					},
+					{
+						test: require.resolve("./src/module/worker.ts"),
+						loader: "exports-loader",
+						options: {
+							type: "module",
+							exports: "getWorker"
+						}
+					},
+					{
 						test: /(\.[jt]s)$/,
 						loader: "babel-loader",
 						exclude: {
 							and: [/node_modules/],
-							not: [/(d3\-.*)$/]
+							not: [/(d3\-.*)$/, /internmap/]
 						}
 					}
 				]

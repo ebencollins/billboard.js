@@ -5,7 +5,7 @@
 /* eslint-disable */
 /* global describe, beforeEach, it, expect */
 import {expect} from "chai";
-import CLASS from "../../src/config/classes";
+import {$DRAG, $SELECT} from "../../src/config/classes";
 import util from "../assets/util";
 
 describe("DRAG", function() {
@@ -35,6 +35,10 @@ describe("DRAG", function() {
 		chart = util.generate(args);
 	});
 
+	afterEach(() => {
+		chart.destroy();
+	});
+
 	describe("default extent", () => {
 		it("should set dragStart xy coordinates", () => {
 			const {internal} = chart;
@@ -57,8 +61,8 @@ describe("DRAG", function() {
 			internal.drag([186.5, 320.5]);
 
 			// circles are selected?
-			expect(main.selectAll(`.${CLASS.selectedCircles}`).size()).to.be.equal(2);
-			expect(main.selectAll(`.${CLASS.INCLUDED}`).size()).to.be.equal(3);
+			expect(main.selectAll(`.${$SELECT.selectedCircles}`).size()).to.be.equal(2);
+			expect(main.selectAll(`.${$DRAG.INCLUDED}`).size()).to.be.equal(3);
 		});
 
 		it("selected points should be unselected and drag area should be removed", done => {
@@ -69,10 +73,10 @@ describe("DRAG", function() {
 			internal.dragend();
 
 			setTimeout(() => {
-				expect(main.selectAll(`.${CLASS.INCLUDED}`).size()).to.be.equal(0);
+				expect(main.selectAll(`.${$DRAG.INCLUDED}`).size()).to.be.equal(0);
 
 				// check for selection rect
-				expect(main.select(`.${CLASS.dragarea}`).empty()).to.be.true;
+				expect(main.select(`.${$DRAG.dragarea}`).empty()).to.be.true;
 
 				// dragging flag to be set false
 				expect(internal.state.dragging).to.be.false;
@@ -94,14 +98,12 @@ describe("DRAG", function() {
 					  enabled: true,
 					  draggable: true
 					}
-				  }
+				}
 			};
 		});
 
 		it("should select data points by dragging event", done => {
 			const {internal: {$el}} = chart;
-
-			chart.$.svg.select(".overlay").node()
 
 			util.doDrag($el.eventRect.node(), {
 				clientX: 34.5,
@@ -112,9 +114,58 @@ describe("DRAG", function() {
 			});
 
 			setTimeout(() => {
-				const selectedCircle = $el.chart.selectAll(`.${CLASS.selectedCircles}`);
+				const selectedCircle = $el.chart.selectAll(`.${$SELECT.selectedCircles}`);
 
 				expect(selectedCircle.size()).to.be.equal(2);
+				done();
+			}, 500);
+		});
+
+		it("set options: data.type='bar'", () => {
+			args.data.type = "bar";
+		});
+
+		it("bar should be selected by drag", done => {
+			const {internal: {$el}} = chart;
+
+			util.doDrag($el.eventRect.node(), {
+				clientX: 34.5,
+				clientY: 20
+			}, {
+				clientX: 280,
+				clientY: 340,
+			});
+
+			setTimeout(() => {
+				const selected = $el.chart.selectAll(`.${$SELECT.SELECTED}`);
+
+				
+				expect(selected.size()).to.be.equal(4);
+
+				done();
+			}, 500);
+		});
+
+		it("set options: data.selection.enabled=fasle", () => {
+			args.data.selection.enabled = false;
+		});
+
+		it("shouldn't be selected by drag", done => {
+			const {internal: {$el}} = chart;
+
+			util.doDrag($el.eventRect.node(), {
+				clientX: 34.5,
+				clientY: 20
+			}, {
+				clientX: 280,
+				clientY: 340,
+			});
+
+			setTimeout(() => {
+				const selected = $el.chart.selectAll(`.${$SELECT.SELECTED}`);
+				
+				expect(selected.size()).to.be.equal(0);
+
 				done();
 			}, 500);
 		});

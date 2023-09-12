@@ -2,7 +2,8 @@
  * Copyright (c) 2017 ~ present NAVER Corp.
  * billboard.js project is licensed under the MIT license
  */
-import {Selection} from "d3-selection";
+import type {Selection} from "d3-selection";
+import type {Transition} from "d3-transition";
 
 export type PrimitiveArray = Array<
 	string | boolean | number | Date | null |
@@ -10,6 +11,7 @@ export type PrimitiveArray = Array<
 >;
 export type ArrayOrString = string[] | string;
 export type d3Selection = Selection<any, any, any, any>;
+export type d3Transition = Transition<any, any, any, any>;
 export type ChartTypes = "area"
 	| "area-line-range"
 	| "area-spline"
@@ -25,7 +27,8 @@ export type ChartTypes = "area"
 	| "radar"
 	| "scatter"
 	| "spline"
-	| "step";
+	| "step"
+	| "treemap";
 
 export type GaugeTypes = "single" | "multi";
 export type AxisType = "x" | "y" | "y2";
@@ -34,16 +37,16 @@ export interface TargetIds {
 	ids: string[] | string;
 }
 
-export interface DataRow {
+export interface DataRow<T=number> {
 	id: string;
 	id_org: string; // eslint-disable-line camelcase
-	values: DataItem[];
+	values: Array<DataItem<T>>;
 }
 
-export interface DataItem {
+export interface DataItem<T=number> {
 	id: string;
 	x: number;
-	value: number;
+	value: T;
 	index?: number;
 	name?: string;
 	ratio?: number;
@@ -51,12 +54,26 @@ export interface DataItem {
 
 export type DataArray = DataRow[];
 
-export interface RegionsType {
+export interface DataRegionsType {
 	[key: string]: {
 		start?: number;
 		end?: number;
 		style?: {
 			dasharray?: string;
 		}
+	};
+}
+
+export interface RegionsType {
+	axis?: "x" | "y" | "y2";
+	start?: number;
+	end?: number;
+	class?: string;
+	label?: {
+		text: string;
+		x?: number;
+		y?: number;
+		color?: string;
+		rotated?: boolean;
 	};
 }

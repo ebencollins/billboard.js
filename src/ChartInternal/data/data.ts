@@ -2,9 +2,10 @@
  * Copyright (c) 2017 ~ present NAVER Corp.
  * billboard.js project is licensed under the MIT license
  */
-import CLASS from "../../config/classes";
+import {select as d3Select} from "d3-selection";
+import {$BAR, $CANDLESTICK, $COMMON} from "../../config/classes";
 import {KEY} from "../../module/Cache";
-import {IData, IDataRow} from "./IData";
+import type {IData, IDataPoint, IDataRow} from "./IData";
 import {
 	findIndex,
 	getUnique,
@@ -45,7 +46,13 @@ export default {
 		return !!(config.data_stack_normalize && config.data_groups.length);
 	},
 
-	isGrouped(id) {
+	/**
+	 * Check if given id is grouped data or has grouped data
+	 * @param {string} id Data id value
+	 * @returns {boolean} is grouped data or has grouped data
+	 * @private
+	 */
+	isGrouped(id?: string): boolean {
 		const groups = this.config.data_groups;
 
 		return id ?
@@ -82,7 +89,7 @@ export default {
 	 * @returns {number} index number
 	 * @private
 	 */
-	getIndexByX(x, basedX: (string|Date)[]): number {
+	getIndexByX(x: Date|number|string, basedX: (Date|number|string)[]): number {
 		const $$ = this;
 
 		return basedX ?
@@ -122,7 +129,6 @@ export default {
 
 	isMultipleX(): boolean {
 		return notEmpty(this.config.data_xs) ||
-			!this.config.data_xSort ||
 			this.hasType("bubble") ||
 			this.hasType("scatter");
 	},
@@ -154,7 +160,7 @@ export default {
 			.map(t => $$.addName($$.getValueOnIndex(t.values, index)));
 
 		if (filterNull) {
-			value = value.filter(v => isValue(v.value));
+			value = value.filter(v => v && "value" in v && isValue(v.value));
 		}
 
 		return value;
@@ -271,7 +277,7 @@ export default {
 	 * @private
 	 * @returns {{min: Array, max: Array}}
 	 */
-	getMinMaxData() {
+	getMinMaxData(): {min: IDataRow[], max: IDataRow[]} {
 		const $$ = this;
 		const cacheKey = KEY.dataMinMax;
 		let minMaxData = $$.cache.get(cacheKey);
@@ -313,7 +319,7 @@ export default {
 		const cacheKey = KEY.dataTotalPerIndex;
 		let sum = $$.cache.get(cacheKey);
 
-		if ($$.isStackNormalized() && !sum) {
+		if (($$.config.data_groups.length || $$.isStackNormalized()) && !sum) {
 			sum = [];
 
 			$$.data.targets.forEach(row => {
@@ -343,10 +349,11 @@ export default {
 
 		if (!isNumber(total)) {
 			const sum = mergeArray($$.data.targets.map(t => t.values))
-				.map(v => v.value)
-				.reduce((p, c) => p + c);
+				.map(v => v.value);
 
-			$$.cache.add(cacheKey, total = sum);
+			total = sum.length ? sum.reduce((p, c) => p + c) : 0;
+
+			$$.cache.add(cacheKey, total);
 		}
 
 		if (subtractHidden) {
@@ -391,12 +398,13 @@ export default {
 	 * @private
 	 */
 	getMaxDataCount(): number {
-		return Math.max(...this.data.targets.map(t => t.values.length));
+		return Math.max(...this.data.targets.map(t => t.values.length), 0);
 	},
 
 	getMaxDataCountTarget() {
 		let target = this.filterTargetsToShow() || [];
 		const length = target.length;
+		const isInverted = this.config.axis_x_inverted;
 
 		if (length > 1) {
 			target = target.map(t => t.values)
@@ -404,9 +412,9 @@ export default {
 				.map(v => v.x);
 
 			target = sortValue(getUnique(target))
-				.map((x, index) => ({x, index}));
+				.map((x, index, array) => ({x, index: isInverted ? array.length - index - 1 : index}));
 		} else if (length) {
-			target = target[0].values;
+			target = target[0].values.concat();
 		}
 
 		return target;
@@ -586,6 +594,7 @@ export default {
 
 	/**
 	 * Sort targets data
+	 * Note: For stacked bar, will sort from the total sum of data series, not for each stacked bar
 	 * @param {Array} targetsValue Target value
 	 * @returns {Array}
 	 * @private
@@ -602,11 +611,11 @@ export default {
 
 	/**
 	 * Get data.order compare function
-	 * @param {boolean} isArc Is for Arc type sort or not
+	 * @param {boolean} isReversed for Arc & Treemap type sort order needs to be reversed
 	 * @returns {Function} compare function
 	 * @private
 	 */
-	getSortCompareFn(isArc = false): Function | null {
+	getSortCompareFn(isReversed = false): Function | null {
 		const $$ = this;
 		const {config} = $$;
 		const order = config.data_order;
@@ -617,11 +626,11 @@ export default {
 		if (orderAsc || orderDesc) {
 			const reducer = (p, c) => p + Math.abs(c.value);
 
-			fn = (t1, t2) => {
-				const t1Sum = t1.values.reduce(reducer, 0);
-				const t2Sum = t2.values.reduce(reducer, 0);
+			fn = (t1: IData | IDataRow, t2: IData | IDataRow) => {
+				const t1Sum = "values" in t1 ? t1.values.reduce(reducer, 0) : t1.value;
+				const t2Sum = "values" in t2 ? t2.values.reduce(reducer, 0) : t2.value;
 
-				return isArc ?
+				return isReversed ?
 					(orderAsc ? t1Sum - t2Sum : t2Sum - t1Sum) :
 					(orderAsc ? t2Sum - t1Sum : t1Sum - t2Sum);
 			};
@@ -662,18 +671,34 @@ export default {
 	 */
 	getDataIndexFromEvent(event): number {
 		const $$ = this;
-		const {config, state: {inputType, eventReceiver: {coords, rect}}} = $$;
-		const isRotated = config.axis_rotated;
+		const {config, state: {hasRadar, inputType, eventReceiver: {coords, rect}}} = $$;
+		let index;
 
-		// get data based on the mouse coords
-		const e = inputType === "touch" && event.changedTouches ? event.changedTouches[0] : event;
-		const index = findIndex(
-			coords,
-			isRotated ? e.clientY - rect.top : e.clientX - rect.left,
-			0,
-			coords.length - 1,
-			isRotated
-		);
+		if (hasRadar) {
+			let target = event.target;
+
+			// in case of multilined axis text
+			if (/tspan/i.test(target.tagName)) {
+				target = target.parentNode;
+			}
+
+			const d: any = d3Select(target).datum();
+
+			index = d && Object.keys(d).length === 1 ? d.index : undefined;
+		} else {
+			const isRotated = config.axis_rotated;
+
+			// get data based on the mouse coords
+			const e = inputType === "touch" && event.changedTouches ? event.changedTouches[0] : event;
+
+			index = findIndex(
+				coords,
+				isRotated ? e.clientY - rect.top : e.clientX - rect.left,
+				0,
+				coords.length - 1,
+				isRotated
+			);
+		}
 
 		return index;
 	},
@@ -728,7 +753,7 @@ export default {
 		return sames;
 	},
 
-	findClosestFromTargets(targets, pos): IDataRow | undefined {
+	findClosestFromTargets(targets, pos: [number, number]): IDataRow | undefined {
 		const $$ = this;
 		const candidates = targets.map(target => $$.findClosest(target.values, pos)); // map to array of closest points of each target
 
@@ -736,29 +761,35 @@ export default {
 		return $$.findClosest(candidates, pos);
 	},
 
-	findClosest(values, pos): IDataRow | undefined {
+	findClosest(values, pos: [number, number]): IDataRow | undefined {
 		const $$ = this;
-		const {config, $el: {main}} = $$;
+		const {$el: {main}} = $$;
 		const data = values.filter(v => v && isValue(v.value));
-		let minDist = config.point_sensitivity;
+
+		let minDist;
 		let closest;
 
-		// find mouseovering bar
+		// find mouseovering bar/candlestick
+		// https://github.com/naver/billboard.js/issues/2434
 		data
-			.filter(v => $$.isBarType(v.id))
+			.filter(v => $$.isBarType(v.id) || $$.isCandlestickType(v.id))
 			.forEach(v => {
-				const shape = main.select(`.${CLASS.bars}${$$.getTargetSelectorSuffix(v.id)} .${CLASS.bar}-${v.index}`).node();
+				const selector = $$.isBarType(v.id) ?
+					`.${$BAR.chartBar}.${$COMMON.target}${$$.getTargetSelectorSuffix(v.id)} .${$BAR.bar}-${v.index}` :
+					`.${$CANDLESTICK.chartCandlestick}.${$COMMON.target}${$$.getTargetSelectorSuffix(v.id)} .${$CANDLESTICK.candlestick}-${v.index} path`;
 
-				if (!closest && $$.isWithinBar(shape)) {
+				if (!closest && $$.isWithinBar(main.select(selector).node())) {
 					closest = v;
 				}
 			});
 
-		// find closest point from non-bar
+		// find closest point from non-bar/candlestick
 		data
-			.filter(v => !$$.isBarType(v.id))
-			.forEach(v => {
+			.filter(v => !$$.isBarType(v.id) && !$$.isCandlestickType(v.id))
+			.forEach((v: IDataPoint) => {
 				const d = $$.dist(v, pos);
+
+				minDist = $$.getPointSensitivity(v);
 
 				if (d < minDist) {
 					minDist = d;
@@ -769,11 +800,11 @@ export default {
 		return closest;
 	},
 
-	dist(data, pos) {
+	dist(data: IDataPoint, pos: [number, number]) {
 		const $$ = this;
 		const {config: {axis_rotated: isRotated}, scale} = $$;
-		const xIndex = isRotated ? 1 : 0;
-		const yIndex = isRotated ? 0 : 1;
+		const xIndex = +isRotated; // true: 1, false: 0
+		const yIndex = +!isRotated; // true: 0, false: 1
 		const y = $$.circleY(data, data.index);
 		const x = (scale.zoom || scale.x)(data.x);
 
@@ -791,31 +822,34 @@ export default {
 		const {axis, config} = $$;
 		const stepType = config.line_step_type;
 		const isCategorized = axis ? axis.isCategorized() : false;
-
 		const converted = isArray(values) ? values.concat() : [values];
 
 		if (!(isCategorized || /step\-(after|before)/.test(stepType))) {
 			return values;
 		}
 
-		// insert & append cloning first/last value to be fully rendered covering on each gap sides
-		const head = converted[0];
-		const tail = converted[converted.length - 1];
-		const {id} = head;
-		let {x} = head;
+		// when all datas are null, return empty array
+		// https://github.com/naver/billboard.js/issues/3124
+		if (converted.length) {
+			// insert & append cloning first/last value to be fully rendered covering on each gap sides
+			const head = converted[0];
+			const tail = converted[converted.length - 1];
+			const {id} = head;
+			let {x} = head;
 
-		// insert head
-		converted.unshift({x: --x, value: head.value, id});
-
-		isCategorized && stepType === "step-after" &&
+			// insert head
 			converted.unshift({x: --x, value: head.value, id});
 
-		// append tail
-		x = tail.x;
-		converted.push({x: ++x, value: tail.value, id});
+			isCategorized && stepType === "step-after" &&
+				converted.unshift({x: --x, value: head.value, id});
 
-		isCategorized && stepType === "step-before" &&
+			// append tail
+			x = tail.x;
 			converted.push({x: ++x, value: tail.value, id});
+
+			isCategorized && stepType === "step-before" &&
+				converted.push({x: ++x, value: tail.value, id});
+		}
 
 		return converted;
 	},
@@ -880,6 +914,25 @@ export default {
 	},
 
 	/**
+	 * Set ratio for grouped data
+	 * @param {Array} data Data array
+	 * @private
+	 */
+	setRatioForGroupedData(data: (IDataRow | IData)[]): void {
+		const $$ = this;
+		const {config} = $$;
+
+		// calculate ratio if grouped data exists
+		if (config.data_groups.length && data.some(d => $$.isGrouped(d.id))) {
+			const setter = (d: IDataRow) => $$.getRatio("index", d, true);
+
+			data.forEach(v => {
+				"values" in v ? v.values.forEach(setter) : setter(v);
+			});
+		}
+	},
+
+	/**
 	 * Get ratio value
 	 * @param {string} type Ratio for given type
 	 * @param {object} d Data value object
@@ -903,7 +956,8 @@ export default {
 
 					// otherwise, based on the rendered angle value
 				} else {
-					const gaugeArcLength = config.gauge_fullCircle ? $$.getArcLength() : $$.getStartAngle() * -2;
+					const gaugeArcLength = config.gauge_fullCircle ?
+						$$.getArcLength() : $$.getGaugeStartAngle() * -2;
 					const arcLength = $$.hasType("gauge") ? gaugeArcLength : Math.PI * 2;
 
 					ratio = (d.endAngle - d.startAngle) / arcLength;
@@ -923,8 +977,10 @@ export default {
 					}
 				}
 
-				d.ratio = isNumber(d.value) && total && total[d.index] > 0 ?
-					d.value / total[d.index] : 0;
+				const divisor = total[d.index];
+
+				d.ratio = isNumber(d.value) && total && divisor ?
+					d.value / divisor : 0;
 
 				ratio = d.ratio;
 			} else if (type === "radar") {
@@ -937,6 +993,8 @@ export default {
 
 				// when all data are 0, return 0
 				ratio = max === 0 ? 0 : Math.abs(d.value) / max;
+			} else if (type === "treemap") {
+				ratio /= $$.getTotalDataSum(true);
 			}
 		}
 
@@ -979,8 +1037,21 @@ export default {
 
 		return $$.isBubbleType(d) && (
 			(isObject(d.value) && ("z" in d.value || "y" in d.value)) ||
-			(isArray(d.value) && d.value.length === 2)
+			(isArray(d.value) && d.value.length >= 2)
 		);
+	},
+
+	/**
+	 * Determine if bar has ranged data
+	 * @param {Array} d data value
+	 * @returns {boolean}
+	 * @private
+	 */
+	isBarRangeType(d): boolean {
+		const $$ = this;
+		const {value} = d;
+
+		return $$.isBarType(d) && isArray(value) && value.length >= 2 && value.every(v => isNumber(v));
 	},
 
 	/**

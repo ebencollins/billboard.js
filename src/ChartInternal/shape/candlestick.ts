@@ -3,10 +3,11 @@
  * billboard.js project is licensed under the MIT license
  */
 import {select as d3Select} from "d3-selection";
-import CLASS from "../../config/classes";
+import {$CANDLESTICK, $COMMON} from "../../config/classes";
 import {getRandom, isArray, isNumber, isObject} from "../../module/util";
+import type {IOffset} from "./shape";
 
-type CandlestickData = {
+interface ICandlestickData {
 	open: number;
 	high: number;
 	low: number;
@@ -18,10 +19,10 @@ export default {
 	initCandlestick(): void {
 		const {$el} = this;
 
-		$el.candlestick = $el.main.select(`.${CLASS.chart}`)
+		$el.candlestick = $el.main.select(`.${$COMMON.chart}`)
 			// should positioned at the beginning of the shape node to not overlap others
 			.append("g")
-			.attr("class", CLASS.chartCandlesticks);
+			.attr("class", $CANDLESTICK.chartCandlesticks);
 	},
 
 	/**
@@ -34,16 +35,14 @@ export default {
 		const $$ = this;
 		const {$el} = $$;
 		const classChart = $$.getChartClass("Candlestick");
-		const classFocus = $$.classFocus.bind($$);
 
 		if (!$el.candlestick) {
 			$$.initCandlestick();
 		}
 
-		const mainUpdate = $$.$el.main.select(`.${CLASS.chartCandlesticks}`)
-			.selectAll(`.${CLASS.chartCandlestick}`)
-			.data(targets)
-			.attr("class", d => classChart(d) + classFocus(d));
+		const mainUpdate = $$.$el.main.select(`.${$CANDLESTICK.chartCandlesticks}`)
+			.selectAll(`.${$CANDLESTICK.chartCandlestick}`)
+			.data(targets);
 
 		mainUpdate.enter().append("g")
 			.attr("class", classChart)
@@ -63,8 +62,8 @@ export default {
 		const classSetter = $$.getClass("candlestick", true);
 		const initialOpacity = $$.initialOpacity.bind($$);
 
-		const candlestick = $root.main.selectAll(`.${CLASS.chartCandlestick}`)
-			.selectAll(`.${CLASS.candlestick}`)
+		const candlestick = $root.main.selectAll(`.${$CANDLESTICK.chartCandlestick}`)
+			.selectAll(`.${$CANDLESTICK.candlestick}`)
 			.data($$.labelishData.bind($$));
 
 		$T(candlestick.exit(), withTransition)
@@ -78,10 +77,6 @@ export default {
 
 		candlestickEnter.append("line");
 		candlestickEnter.append("path");
-
-		if (!$root.candlestick) {
-			$root.candlestick = {};
-		}
 
 		$root.candlestick = candlestick.merge(candlestickEnter)
 			.style("opacity", initialOpacity);
@@ -111,7 +106,7 @@ export default {
 			const indexY = +!indexX;
 
 			if (g.classed) {
-				g.classed(CLASS[isUp ? "valueUp" : "valueDown"], true);
+				g.classed($CANDLESTICK[isUp ? "valueUp" : "valueDown"], true);
 			}
 
 			const path = isRotated ?
@@ -156,11 +151,9 @@ export default {
 	 */
 	generateGetCandlestickPoints(indices, isSub = false): (d, i) => number[][] {
 		const $$ = this;
-		const {config} = $$;
-
 		const axis = isSub ? $$.axis.subX : $$.axis.x;
 		const targetsNum = $$.getIndicesMax(indices) + 1;
-		const barW = $$.getBarW("candlestick", axis, targetsNum);
+		const barW: IOffset = $$.getBarW("candlestick", axis, targetsNum);
 		const x = $$.getShapeX(barW, indices, !!isSub);
 		const y = $$.getShapeY(!!isSub);
 		const shapeOffset = $$.getShapeOffset($$.isBarType, indices, !!isSub);
@@ -173,7 +166,7 @@ export default {
 			const value = $$.getCandlestickData(d);
 			let points;
 
-			if (value) {
+			if (value && isNumber(value.open) && isNumber(value.close)) {
 				const posX = {
 					start: x(d),
 					end: 0
@@ -190,13 +183,6 @@ export default {
 					high: y(value.high),
 					low: y(value.low)
 				};
-
-				// fix posY not to overflow opposite quadrant
-				if (config.axis_rotated && (
-					(d.value > 0 && posY.start < y0) || (d.value < 0 && y0 < posY.start)
-				)) {
-					posY.start = y0;
-				}
 
 				posY.start -= (y0 - offset);
 
@@ -244,7 +230,7 @@ export default {
 	 * @returns {object|null} Converted data object
 	 * @private
 	 */
-	getCandlestickData({value}): CandlestickData | null {
+	getCandlestickData({value}): ICandlestickData | null {
 		let d;
 
 		if (isArray(value)) {

@@ -4,15 +4,16 @@
  */
 import {line as d3Line} from "d3-shape";
 import {getScale} from "../internals/scale";
-import CLASS from "../../config/classes";
+import {$COMMON, $LINE} from "../../config/classes";
 import {getPointer, getRandom, isArray, isDefined, isUndefined, isValue, parseDate} from "../../module/util";
 
 export default {
 	initLine(): void {
 		const {$el} = this;
 
-		$el.line = $el.main.select(`.${CLASS.chart}`).append("g")
-			.attr("class", CLASS.chartLines);
+		$el.line = $el.main.select(`.${$COMMON.chart}`).append("g")
+			.attr("class", $LINE.chartLines)
+			.call(this.setCssRule(false, `.${$LINE.chartLines}`, ["pointer-events:none"]));
 	},
 
 	updateTargetsForLine(t): void {
@@ -28,15 +29,15 @@ export default {
 
 		const targets = t.filter(d => !($$.isScatterType(d) || $$.isBubbleType(d)));
 
-		const mainLineUpdate = main.select(`.${CLASS.chartLines}`)
-			.selectAll(`.${CLASS.chartLine}`)
+		const mainLineUpdate = main.select(`.${$LINE.chartLines}`)
+			.selectAll(`.${$LINE.chartLine}`)
 			.data(targets)
 			.attr("class", d => classChartLine(d) + classFocus(d));
 
 		const mainLineEnter = mainLineUpdate.enter().append("g")
 			.attr("class", classChartLine)
 			.style("opacity", "0")
-			.style("pointer-events", "none");
+			.style("pointer-events", $$.getStylePropValue("none"));
 
 		// Lines for each data
 		mainLineEnter.append("g")
@@ -44,7 +45,11 @@ export default {
 
 		// Areas
 		if ($$.hasTypeOf("Area")) {
-			$$.initArea(!area && mainLineEnter.empty() ? mainLineUpdate : mainLineEnter);
+			const mainLine = (
+				!area && mainLineEnter.empty() ? mainLineUpdate : mainLineEnter
+			).filter($$.isAreaType.bind($$));
+
+			$$.initArea(mainLine);
 		}
 
 		$$.updateTargetForCircle(targets, mainLineEnter);
@@ -62,8 +67,8 @@ export default {
 		const $root = isSub ? $el.subchart : $el;
 
 		const line = $root.main
-			.selectAll(`.${CLASS.lines}`)
-			.selectAll(`.${CLASS.line}`)
+			.selectAll(`.${$LINE.lines}`)
+			.selectAll(`.${$LINE.line}`)
 			.data($$.lineData.bind($$));
 
 		$T(line.exit(), withTransition)
@@ -76,7 +81,6 @@ export default {
 			.style("stroke", $$.color)
 			.merge(line)
 			.style("opacity", $$.initialOpacity.bind($$))
-			.style("shape-rendering", d => ($$.isStepType(d) ? "crispEdges" : ""))
 			.attr("transform", null);
 	},
 
@@ -204,7 +208,6 @@ export default {
 		const {config} = $$;
 		const isRotated = config.axis_rotated;
 		const isTimeSeries = $$.axis.isTimeSeries();
-		const xOffset = $$.axis.isCategorized() ? 0.5 : 0;
 		const regions: any[] = [];
 		const dasharray = "2 2"; // default value
 
@@ -212,17 +215,6 @@ export default {
 		let yp;
 		let diff;
 		let diffx2;
-
-		// check weather data is within region
-		const isWithinRegions = (withinX, withinRegions) => {
-			for (let i = 0, reg; (reg = withinRegions[i]); i++) {
-				if (reg.start < withinX && withinX <= reg.end) {
-					return reg.style;
-				}
-			}
-
-			return false;
-		};
 
 		// Check start/end of regions
 		if (isDefined(_regions)) {
@@ -245,7 +237,6 @@ export default {
 
 		// Define svg generator function for region
 		const generateM = points => `M${points[0][0]},${points[0][1]}L${points[1][0]},${points[1][1]}`;
-
 		const sWithRegion = isTimeSeries ? (d0, d1, k, timeseriesDiff) => {
 			const x0 = d0.x.getTime();
 			const xDiff = d1.x - d0.x;
@@ -272,7 +263,7 @@ export default {
 		for (let i = 0, data; (data = d[i]); i++) {
 			const prevData = d[i - 1];
 			const hasPrevData = prevData && isValue(prevData.value);
-			let style = isWithinRegions(data.x, regions);
+			let style = $$.isWithinRegions(data.x, regions);
 
 			// https://github.com/naver/billboard.js/issues/1172
 			if (!isValue(data.value)) {
@@ -290,7 +281,7 @@ export default {
 				}
 
 				// Draw with region // TODO: Fix for horizotal charts
-				xp = getScale(axisType.x, prevData.x + xOffset, data.x + xOffset);
+				xp = getScale(axisType.x, prevData.x, data.x);
 				yp = getScale(axisType.y, prevData.value, data.value);
 
 				const dx = x(data.x) - x(prevData.x);
@@ -312,6 +303,16 @@ export default {
 		}
 
 		return path;
+	},
+
+	isWithinRegions(withinX, withinRegions): boolean {
+		for (let i = 0, reg; (reg = withinRegions[i]); i++) {
+			if (reg.start < withinX && withinX <= reg.end) {
+				return reg.style;
+			}
+		}
+
+		return false;
 	},
 
 	isWithinStep(that, y: number): boolean {

@@ -6,6 +6,16 @@ import {isArray, isNumber, isString} from "../../module/util";
 import {TYPE, TYPE_BY_CATEGORY} from "../../config/const";
 
 export default {
+	/**
+	 * Check if the given chart type is valid
+	 * @param {string} type Chart type string
+	 * @returns {boolean}
+	 * @private
+	 */
+	isValidChartType(type: string): boolean {
+		return !!(type && Object.values(TYPE).indexOf(type) > -1);
+	},
+
 	setTargetType(targetIds: string[], type: string): void {
 		const $$ = this;
 		const {config, state: {withoutFadeIn}} = $$;
@@ -175,6 +185,10 @@ export default {
 		return this.isTypeOf(d, "scatter");
 	},
 
+	isTreemapType(d): boolean {
+		return this.isTypeOf(d, "treemap");
+	},
+
 	isPieType(d): boolean {
 		return this.isTypeOf(d, "pie");
 	},
@@ -187,6 +201,10 @@ export default {
 		return this.isTypeOf(d, "donut");
 	},
 
+	isPolarType(d): boolean {
+		return this.isTypeOf(d, "polar");
+	},
+
 	isRadarType(d): boolean {
 		return this.isTypeOf(d, "radar");
 	},
@@ -195,6 +213,7 @@ export default {
 		return this.isPieType(d) ||
 			this.isDonutType(d) ||
 			this.isGaugeType(d) ||
+			this.isPolarType(d) ||
 			this.isRadarType(d);
 	},
 
@@ -236,7 +255,8 @@ export default {
 			this.isScatterType(d) ||
 			this.isBubbleType(d) ||
 			this.isCandlestickType(d) ||
-			this.isRadarType(d) ? d.values.filter(v => isNumber(v.value) || Boolean(v.value)) : [];
+			this.isRadarType(d) ||
+			this.isTreemapType(d) ? d.values.filter(v => isNumber(v.value) || Boolean(v.value)) : [];
 	},
 
 	barLineBubbleData(d) {

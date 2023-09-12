@@ -4,59 +4,34 @@
  */
 import {area as d3Area} from "d3-shape";
 import {select as d3Select} from "d3-selection";
-import CLASS from "../../config/classes";
-import {getRandom, isFunction} from "../../module/util";
+import {$AREA, $CIRCLE, $LINE} from "../../config/classes";
+import {getRandom} from "../../module/util";
+import type {IData, IDataRow} from "../data/IData";
+import {d3Selection} from "../../../types";
+
+type Indices = {[key: string | "__max__"]: number};
 
 export default {
-	initArea(mainLine): void {
+	initArea(mainLine: d3Selection): void {
 		const $$ = this;
 		const {config} = $$;
 
 		mainLine
-			.insert("g", `.${CLASS[config.area_front ? "circles" : "lines"]}`)
+			.insert("g", `.${config.area_front ? $CIRCLE.circles : $LINE.lines}`)
 			.attr("class", $$.getClass("areas", true));
 	},
 
-	updateAreaGradient(): void {
-		const $$ = this;
-		const {config, state: {datetimeId}, $el: {defs}} = $$;
-
-		$$.data.targets.forEach(d => {
-			const id = `${datetimeId}-areaGradient${$$.getTargetSelectorSuffix(d.id)}`;
-
-			if ($$.isAreaType(d) && defs.select(`#${id}`).empty()) {
-				const color = $$.color(d);
-				const {
-					x = [0, 0],
-					y = [0, 1],
-					stops = [[0, color, 1], [1, color, 0]]
-				} = config.area_linearGradient;
-
-				const linearGradient = defs.append("linearGradient")
-					.attr("id", `${id}`)
-					.attr("x1", x[0])
-					.attr("x2", x[1])
-					.attr("y1", y[0])
-					.attr("y2", y[1]);
-
-				stops.forEach(v => {
-					const stopColor = isFunction(v[1]) ? v[1].bind($$.api)(d.id) : v[1];
-
-					linearGradient.append("stop")
-						.attr("offset", v[0])
-						.attr("stop-color", stopColor || color)
-						.attr("stop-opacity", v[2]);
-				});
-			}
-		});
-	},
-
-	updateAreaColor(d): string {
+	/**
+	 * Update area color
+	 * @param {object} d Data object
+	 * @returns {string} Color string
+	 * @private
+	 */
+	updateAreaColor(d: IDataRow): string {
 		const $$ = this;
 
 		return $$.config.area_linearGradient ?
-			`url(#${$$.state.datetimeId}-areaGradient${$$.getTargetSelectorSuffix(d.id)})` :
-			$$.color(d);
+			$$.getGradienColortUrl(d.id) : $$.color(d);
 	},
 
 	/**
@@ -70,10 +45,10 @@ export default {
 		const {config, state, $el, $T} = $$;
 		const $root = isSub ? $el.subchart : $el;
 
-		config.area_linearGradient && $$.updateAreaGradient();
+		config.area_linearGradient && $$.updateLinearGradient();
 
-		const area = $root.main.selectAll(`.${CLASS.areas}`)
-			.selectAll(`.${CLASS.area}`)
+		const area = $root.main.selectAll(`.${$AREA.areas}`)
+			.selectAll(`.${$AREA.area}`)
 			.data($$.lineData.bind($$));
 
 		$T(area.exit(), withTransition)
@@ -90,6 +65,9 @@ export default {
 			.merge(area);
 
 		area.style("opacity", state.orgAreaOpacity);
+
+		// calculate ratio if grouped data exists
+		$$.setRatioForGroupedData($root.area.data());
 	},
 
 	/**
@@ -99,7 +77,7 @@ export default {
 	 * @param {boolean} isSub Subchart draw
 	 * @returns {Array}
 	 */
-	redrawArea(drawFn, withTransition?: boolean, isSub = false) {
+	redrawArea(drawFn: Function, withTransition?: boolean, isSub = false): d3Selection[] {
 		const $$ = this;
 		const {area} = (isSub ? this.$el.subchart : this.$el);
 		const {orgAreaOpacity} = $$.state;
@@ -119,7 +97,7 @@ export default {
 	 * @returns {Function}
 	 * @private
 	 */
-	generateDrawArea(areaIndices, isSub?: boolean): (d) => string {
+	generateDrawArea(areaIndices: Indices, isSub?: boolean): (d: IData) => string {
 		const $$ = this;
 		const {config} = $$;
 		const lineConnectNull = config.line_connectNull;
@@ -156,8 +134,9 @@ export default {
 						.x0(value0)
 						.x1(value1) :
 					area.x(xValue)
-						// @ts-ignore
-						.y0(config.area_above ? 0 : value0)
+						.y0(config.area_above ? 0 : (
+							config.area_below ? $$.state.height : value0
+						))
 						.y1(value1);
 
 				if (!lineConnectNull) {
@@ -182,7 +161,9 @@ export default {
 		};
 	},
 
-	generateGetAreaPoints(areaIndices, isSub?: boolean): Function {
+	generateGetAreaPoints(
+		areaIndices: Indices, isSub?: boolean
+	): (d: IDataRow, i: number) => [number, number][] {
 		// partial duplication of generateGetBarPoints
 		const $$ = this;
 		const {config} = $$;
@@ -195,11 +176,12 @@ export default {
 			const y0 = yScale.call($$, d.id, isSub)($$.getShapeYMin(d.id));
 			const offset = areaOffset(d, i) || y0; // offset is for stacked area chart
 			const posX = x(d);
+			const value = d.value as number;
 			let posY = y(d);
 
 			// fix posY not to overflow opposite quadrant
 			if (config.axis_rotated && (
-				(d.value > 0 && posY < y0) || (d.value < 0 && y0 < posY)
+				(value > 0 && posY < y0) || (value < 0 && y0 < posY)
 			)) {
 				posY = y0;
 			}

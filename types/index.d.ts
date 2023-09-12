@@ -22,10 +22,12 @@ export {
 	gauge,
 	line,
 	pie,
+	polar,
 	radar,
 	scatter,
 	spline,
 	step,
+	treemap,
 
 	// interaction modules
 	selection,

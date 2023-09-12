@@ -40,6 +40,10 @@
         "import/prefer-default-export": 0,
         "no-unused-vars": "off",
         "no-sequences": 0,
+        "spaced-comment": ["error", "always", {
+            "exceptions": ["-", "+"],
+            "markers": ["/"]
+        }],
         "@typescript-eslint/no-unused-vars": [
             "error", {
                 "vars": "all",
@@ -55,7 +59,7 @@
         "jsdoc/valid-types": 0,
         "jsdoc/check-values": 0,
         "jsdoc/no-multi-asterisks": 0,
-        "jsdoc/tag-lines": 0
-
+        "jsdoc/tag-lines": 0,
+        "jsdoc/no-defaults": 0
     }
 }

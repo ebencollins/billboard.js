@@ -39,20 +39,22 @@ export default {
 	 *   - `startingAngle < -1 * Math.PI` defaults to `Math.PI`
 	 *   - `startingAngle >  Math.PI` defaults to `Math.PI`
 	 * @property {number} [gauge.arcLength=100] Set the length of the arc to be drawn in percent from -100 to 100.<br>
-	 * Negative value will draw the arc **counterclockwise**.
+	 * Negative value will draw the arc **counterclockwise**. Need to be used in conjunction with `gauge.fullCircle=true`.
 	 *
 	 * **Limitations:**
 	 * - -100 <= arcLength (in percent) <= 100
 	 * - 'arcLength < -100' defaults to -100
 	 * - 'arcLength > 100' defaults to 100
 	 * @property {string} [gauge.title=""] Set title of gauge chart. Use `\n` character for line break.
+	 *  - **NOTE:**
+	 *    - When `arc.needle.show=true` is set, special template `{=NEEDLE_VALUE}` can be used inside the title text to show current needle value.
 	 * @property {string} [gauge.units] Set units of the gauge.
 	 * @property {number} [gauge.width] Set width of gauge chart.
 	 * @property {string} [gauge.type="single"] Set type of gauge to be displayed.<br><br>
 	 * **Available Values:**
 	 * - single
 	 * - multi
-	 * @property {string} [gauge.arcs.minWidth=5] Set minimal width of gauge arcs until the innerRadius disappears.
+	 * @property {number} [gauge.arcs.minWidth=5] Set minimal width of gauge arcs until the innerRadius disappears.
 	 * @see [Demo: archLength](https://naver.github.io/billboard.js/demo/#GaugeChartOptions.GaugeArcLength)
 	 * @see [Demo: startingAngle](https://naver.github.io/billboard.js/demo/#GaugeChartOptions.GaugeStartingAngle)
 	 * @example
@@ -92,6 +94,10 @@ export default {
 	 *      max: 200,
 	 *      type: "single"  // or 'multi'
 	 *      title: "Title Text",
+	 *
+	 *      // when 'arc.needle.show=true' is set, can show current needle value.
+	 *      title: "Needle value:\n{=NEEDLE_VALUE}",
+	 *
 	 *      units: "%",
 	 *      width: 10,
 	 *      startingAngle: -1 * Math.PI / 2,

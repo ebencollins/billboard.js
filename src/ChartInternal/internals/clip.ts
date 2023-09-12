@@ -7,10 +7,11 @@ import {document, window} from "../../module/browser";
 export default {
 	initClip(): void {
 		const $$ = this;
-		const {clip} = $$.state;
+		const {clip, datetimeId} = $$.state;
 
 		// MEMO: clipId needs to be unique because it conflicts when multiple charts exist
-		clip.id = `${$$.state.datetimeId}-clip`;
+		clip.id = `${datetimeId}-clip`;
+
 		clip.idXAxis = `${clip.id}-xaxis`;
 		clip.idYAxis = `${clip.id}-yaxis`;
 		clip.idGrid = `${clip.id}-grid`;
@@ -56,16 +57,15 @@ export default {
 		const isRotated = config.axis_rotated;
 		const left = Math.max(30, margin.left) - (isRotated ? 0 : 20);
 
-		const x = isRotated ? -(1 + left) : -(left - 1);
-		const y = -Math.max(15, margin.top);
-		const w = isRotated ? margin.left + 20 : width + 10 + left;
-
 		// less than 20 is not enough to show the axis label 'outer' without legend
 		const h = (isRotated ? (margin.top + height) + 10 : margin.bottom) + 20;
 
+		const x = isRotated ? -(1 + left) : -(left - 1);
+		const w = isRotated ? margin.left + 20 : width + 10 + left;
+
 		node
 			.attr("x", x)
-			.attr("y", y)
+			.attr("y", -2)
 			.attr("width", w)
 			.attr("height", h);
 	},
@@ -82,10 +82,11 @@ export default {
 		const left = Math.max(30, margin.left) - (isRotated ? 20 : 0);
 		const isInner = config.axis_y_inner;
 
-		const x = isInner ? -1 : (isRotated ? -(1 + left) : -(left - 1));
+		const x = isInner && !isRotated ? (config.axis_y_label.text ? -20 : -1) :
+			(isRotated ? -(1 + left) : -(left - 1));
 		const y = -(isRotated ? 20 : margin.top);
 		const w = (isRotated ? width + 15 + left : margin.left + 20) + (isInner ? 20 : 0);
-		const h = (isRotated ? margin.bottom : (margin.top + height)) + 10;
+		const h = (isRotated ? margin.bottom + (config.padding?.mode === "fit" ? 10 : 0) : (margin.top + height)) + 10;
 
 		node
 			.attr("x", x)

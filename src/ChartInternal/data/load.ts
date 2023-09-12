@@ -2,12 +2,27 @@
  * Copyright (c) 2017 ~ present NAVER Corp.
  * billboard.js project is licensed under the MIT license
  */
-import CLASS from "../../config/classes";
+import {$LEGEND} from "../../config/classes";
 import {endall} from "../../module/util";
+
+/**
+ * Call done callback with resize after transition
+ * @param {Function} fn Callback function
+ * @param {boolean} resizeAfter Weather to resize chart after the load
+ * @private
+ */
+export function callDone(fn, resizeAfter = false) {
+	const $$ = this;
+	const {api} = $$;
+
+	resizeAfter && $$.api.flush(true);
+	fn?.call(api);
+}
 
 export default {
 	load(rawTargets, args): void {
 		const $$ = this;
+		const {data} = $$;
 		const {append} = args;
 		let targets = rawTargets;
 
@@ -27,7 +42,7 @@ export default {
 			}
 
 			// Update/Add data
-			$$.data.targets.forEach(d => {
+			data.targets.forEach(d => {
 				for (let i = 0; i < targets.length; i++) {
 					if (d.id === targets[i].id) {
 						d.values = append ?
@@ -39,11 +54,11 @@ export default {
 				}
 			});
 
-			$$.data.targets = $$.data.targets.concat(targets); // add remained
+			data.targets = data.targets.concat(targets); // add remained
 		}
 
 		// Set targets
-		$$.updateTargets($$.data.targets);
+		$$.updateTargets(data.targets);
 
 		// Redraw with new targets
 		$$.redraw({
@@ -55,7 +70,7 @@ export default {
 		// Update current state chart type and elements list after redraw
 		$$.updateTypesElements();
 
-		args.done?.call($$.api);
+		callDone.call($$, args.done, args.resizeAfter);
 	},
 
 	loadFromArgs(args): void {
@@ -69,11 +84,12 @@ export default {
 		// reset internally cached data
 		$$.cache.reset();
 
-		const data = args.data || $$.convertData(args, d => $$.load($$.convertDataToTargets(d), args));
+		$$.convertData(args, d => {
+			const data = args.data || d;
 
-		args.append && (data.__append__ = true);
-
-		data && $$.load($$.convertDataToTargets(data), args);
+			args.append && (data.__append__ = true);
+			data && $$.load($$.convertDataToTargets(data), args);
+		});
 	},
 
 	unload(rawTargetIds, customDoneCb): void {
@@ -111,12 +127,15 @@ export default {
 
 			// Remove target's elements
 			if ($el.legend) {
-				$el.legend.selectAll(`.${CLASS.legendItem}${$$.getTargetSelectorSuffix(id)}`).remove();
+				$el.legend.selectAll(`.${$LEGEND.legendItem}${$$.getTargetSelectorSuffix(id)}`).remove();
 			}
 
 			// Remove target
 			$$.data.targets = $$.data.targets.filter(t => t.id !== id);
 		});
+
+		// since treemap uses different data types, it needs to be transformed
+		state.hasTreemap && $$.updateTargetsForTreemap($$.data.targets);
 
 		// Update current state chart type and elements list after redraw
 		$$.updateTypesElements();

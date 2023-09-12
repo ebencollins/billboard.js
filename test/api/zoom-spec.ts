@@ -7,7 +7,7 @@ import {expect} from "chai";
 import sinon from "sinon";
 import {parseDate} from "../../src/module/util";
 import util from "../assets/util";
-import CLASS from "../../src/config/classes";
+import {$AXIS, $EVENT} from "../../src/config/classes";
 
 describe("API zoom", function() {
 	let chart;
@@ -38,6 +38,8 @@ describe("API zoom", function() {
 			const target = [3, 5];
 
 			chart.zoom(target);
+
+			expect(chart.zoom()).to.deep.equal(target);
 
 			setTimeout(() => {
 				const domain = chart.internal.scale.zoom.domain().map(Math.round);
@@ -112,6 +114,8 @@ describe("API zoom", function() {
 
 			chart.zoom(target);
 
+			expect(chart.zoom()).to.deep.equal(target);			
+
 			setTimeout(() => {
 				const domain = chart.internal.scale.zoom.domain();
 
@@ -175,6 +179,8 @@ describe("API zoom", function() {
 
 			chart.zoom(target);
 
+			expect(chart.zoom()).to.deep.equal(target);
+
 			setTimeout(() => {
 				const {internal} = chart;
 				const {state, zoom} = internal;
@@ -183,7 +189,7 @@ describe("API zoom", function() {
 					.filter((v, i) => target.indexOf(i) !== -1);
 
 				const rectSize = rectlist[0].w;
-				const domain = internal.zoom.getDomain();
+				const domain = internal.zoom.getDomain().map(Math.floor);
 
 				expect(domain).to.deep.equal(target);
 
@@ -216,8 +222,8 @@ describe("API zoom", function() {
 		});
 
 		it("should be zoomed properly", done => {
-			const rectlist = chart.$.main.selectAll(`.${CLASS.eventRect}`).nodes();
-			const rect = [];
+			const rectlist = chart.$.main.selectAll(`.${$EVENT.eventRect}`).nodes();
+			const rect: number[] = [];
 
 			// when
 			chart.zoom([3, 5]);
@@ -305,23 +311,21 @@ describe("API zoom", function() {
 			// when disable zoom
 			chart.zoom.enable(false);
 
-			//const selector = `.${CLASS.eventRect}-1`;
+			//const selector = `.${$EVENT.eventRect}-1`;
 			const xValue = coords[1].x;
-			const tickTransform = [];
+			const tickTransform: string[] = [];
 
-			main.selectAll(`.${CLASS.axisX} .tick`).each(function() {
+			main.selectAll(`.${$AXIS.axisX} .tick`).each(function() {
 				tickTransform.push(this.getAttribute("transform"));
 			});
 
 			// check the returned domain value
-			chart.zoom(domain).map(Math.round).forEach((v, i) => {
-				expect(v).to.not.equal(domain[i]);
-			});
+			expect(chart.zoom(domain)).to.be.undefined;
 
 			expect(coords[1].x).to.be.equal(xValue);
 
 			// check x Axis to not be zoomed
-			main.selectAll(`.${CLASS.axisX} .tick`).each(function(i) {
+			main.selectAll(`.${$AXIS.axisX} .tick`).each(function(i) {
 				expect(this.getAttribute("transform")).to.be.equal(tickTransform[i]);
 			});
 
@@ -355,7 +359,7 @@ describe("API zoom", function() {
 			expect(Math.round(zoomRange[0])).to.be.equal(range);
 
 			setTimeout(() => {
-				expect(+chart.$.main.select(`.${CLASS.axisX} .tick`).attr("transform").match(/\d+/)[0]).to.be.above(250);
+				expect(+chart.$.main.select(`.${$AXIS.axisX} .tick`).attr("transform").match(/\d+/)[0]).to.be.above(250);
 				done();
 			}, 300);
 		});
@@ -367,7 +371,7 @@ describe("API zoom", function() {
 			expect(Math.round(zoomRange[1])).to.be.equal(range);
 
 			setTimeout(() => {
-				const tick = chart.$.main.selectAll(`.${CLASS.axisX} .tick`);
+				const tick = chart.$.main.selectAll(`.${$AXIS.axisX} .tick`);
 
 				expect(+tick.filter(`:nth-child(${tick.size() + 1})`).attr("transform").match(/\d+/)[0]).to.be.below(500);
 				done();
@@ -385,7 +389,7 @@ describe("API zoom", function() {
 			let zoomRange = chart.zoom([-2, 1]);
 
 			expect(Math.round(zoomRange[0])).to.be.equal(range.min);
-			expect(+main.select(`.${CLASS.axisX} .tick`).attr("transform").match(/\d+/)[0]).to.be.above(350);
+			expect(+main.select(`.${$AXIS.axisX} .tick`).attr("transform").match(/\d+/)[0]).to.be.above(350);
 
 			// check the max range
 			zoomRange = chart.zoom([5, 7]);
@@ -393,7 +397,7 @@ describe("API zoom", function() {
 			expect(Math.round(zoomRange[1])).to.be.equal(range.max);
 
 			setTimeout(() => {
-				const tick = main.selectAll(`.${CLASS.axisX} .tick`);
+				const tick = main.selectAll(`.${$AXIS.axisX} .tick`);
 
 				expect(+tick.filter(`:nth-child(${tick.size() + 1})`).attr("transform").match(/\d+/)[0]).to.be.below(5);
 				done();
@@ -422,7 +426,7 @@ describe("API zoom", function() {
 		});
 
 		it("check bar's width for zoom in/out API call", done => {
-			const len = [];
+			const len: number[] = [];
 
 			chart.$.bar.bars.each(function() {
 				len.push(this.getTotalLength());
@@ -559,6 +563,73 @@ describe("API zoom", function() {
 
 		it("drag type: check for zoom events trigger", ()=> {
 			chkZoomEvents();
+		});
+	});
+
+	describe("zoom for timeseries axis type", () => {
+		before(() => {
+			chart = util.generate({
+				data: {
+					columns: [
+						["sample", 30, 200, 100, 400, 150, 250, 150, 200, 170, 240, 350, 150, 100, 400, 150, 250, 150, 200, 170, 240, 100, 150, 250, 150, 200, 170, 240, 30, 200, 100, 400, 150, 250, 150, 200, 170, 240, 350, 150, 100, 400, 350, 220, 250, 300, 270, 140, 150, 90, 150, 50, 120, 70, 40]
+					],
+					type: "line"
+				},
+				legend: {
+					show: true
+				},
+				zoom: {
+					enabled: true, 
+					type: "drag",
+				},
+				transition: {
+					duration: 0
+				}
+			});
+		});
+
+		it("unzoom after adding xgrid dynamically.", () => {
+			const {internal: $$} = chart;
+
+			// zoom
+			chart.zoom([30, 40]);
+
+			const {$el: {eventRect}, scale: {x, zoom}} = $$;
+			const xDomain = x.domain().reduce((prev, curr) => prev + curr);
+			const zoomDomain = zoom.domain().reduce((prev, curr) => prev + curr);
+
+			// when
+			chart.xgrids([{value: 33, text: "123"}]);
+
+			expect(zoomDomain).to.be.above(xDomain);
+
+			// unzoom
+			chart.unzoom();
+
+			expect($$.scale.x.domain()).to.be.deep.equal(x.domain());
+			expect($$.scale.zoom).to.be.null;
+		});
+
+		it("unzoom after adding regions dynamically.", () => {
+			const {internal: $$} = chart;
+
+			// zoom
+			chart.zoom([30, 40]);
+
+			const {$el: {eventRect}, scale: {x, zoom}} = $$;
+			const xDomain = x.domain().reduce((prev, curr) => prev + curr);
+			const zoomDomain = zoom.domain().reduce((prev, curr) => prev + curr);
+
+			// when
+			chart.regions([{axis: "x", start: 30, end: 35}]);
+
+			expect(zoomDomain).to.be.above(xDomain);
+
+			// unzoom
+			chart.unzoom();
+
+			expect($$.scale.x.domain()).to.be.deep.equal(x.domain());
+			expect($$.scale.zoom).to.be.null;		  	
 		});
 	});
 });

@@ -86,6 +86,86 @@ describe("DOMAIN", function() {
 			expect(domain[1]).to.be.equal(1);
 		});
 
+		it("set options", () => {
+			args = {
+				data: {
+					columns: [
+						["data1", 5, 5, 5, 5, 5]
+					],
+					type: "bar"
+				},
+				axis: {
+					y: { 
+						max: 5,
+						tick: {
+							values: [1, 3, 5]
+						},
+						padding: {
+							top: 0,
+							bottom: 0
+						}
+					}
+				}
+			}
+		});
+
+		it("check y axis domain range with positive data value", () => {
+			const domain = chart.internal.scale.y.domain();
+
+			expect(domain).to.be.deep.equal([0, args.axis.y.max]);
+		});
+
+		it("set options: data.columns", () => {
+			args.data.columns[0].splice(1, 1, -5);
+		});
+
+		it("check y axis domain range with negative data value", () => {
+			const domain = chart.internal.scale.y.domain();
+
+			expect(domain).to.be.deep.equal([-5, args.axis.y.max]);
+		});
+
+		it("set options", () => {
+			args = {
+				data: {
+					columns: [
+						["data1", 5, 5, 5, 5, 5],
+						["data2", -5, -5, -5, -5, -5],
+					],
+					type: "bar",
+					axes: {
+						data1: "y",
+						data2: "y2"
+					}
+				  },
+				  axis: {
+				   y: { 
+						max: 5,
+						tick: { values: [1, 3, 5] },
+						padding: {
+							top: 0,
+							bottom: 0
+						}
+					},
+					y2: {
+						show: true,
+						min: -5,
+						tick: { values: [-1, -3, -5] },
+						padding: {
+							top: 0,
+							bottom: 0
+						}
+					}
+				}
+			};
+		});
+
+		it("check y/y2 axes domain range", () => {
+			const {y, y2} = chart.internal.scale;
+
+			expect(y.domain()).to.be.deep.equal([0, args.axis.y.max]);
+			expect(y2.domain()).to.be.deep.equal([args.axis.y2.min, 0]);
+		});
 	});
 
 	describe("axis.y.padding #1", () => {
@@ -256,6 +336,45 @@ describe("DOMAIN", function() {
 			it("y2 Axis domain should maintain", done => {
 				checkDomain("data2", "y2", done);
 			});
+		});
+	});
+
+	describe("data.axes with combination of zerobased and non-zerobased types.", () => {
+		before(() => {
+			args = {
+				data: {
+					columns: [
+						["data1", 30, 200, 100, 400, 150],
+						["data2", 130, 100, 200, 250, 250]
+					],
+					axes: {
+						data1: "y1",
+						data2: "y2"
+					},
+					types: {
+						data1: "bar",
+						data2: "line"
+					}
+				  },
+				  axis: {
+					y: {
+						show: false
+					},
+					y2: {
+						show: true
+					}
+				}
+			};
+		});
+
+		it("y2 domain value shouldn't be chaging.", () => {
+			const {scale: {y2}} = chart.internal;
+			const domain = y2.domain();
+
+			// when toogling, y2 domain should stay same without changes
+			chart.toggle("data1");
+
+			expect(y2.domain()).to.be.deep.equal(domain);
 		});
 	});
 });

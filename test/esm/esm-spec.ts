@@ -6,7 +6,7 @@
 /* global describe, beforeEach, it, expect */
 import {expect} from "chai";
 import * as bb from "../../src/index.esm";
-import CLASS from "../../src/config/classes";
+import {$RADAR} from "../../src/config/classes";
 
 describe("ESM build", function() {
     let chart;
@@ -72,7 +72,7 @@ describe("ESM build", function() {
 
                     } else if (v === "radar") {
                         path = chart.$.main
-                            .select(`.${CLASS.chartRadar} polygon`)
+                            .select(`.${$RADAR.chartRadar} polygon`)
                             .attr("points");
                 
                     } else if (v === "scatter") {
@@ -86,6 +86,11 @@ describe("ESM build", function() {
                             expect(this.querySelector("line")).to.not.be.null;
                         });
 
+                    } else if (v === "polar") {
+                        path = chart.$.main.selectAll("path").attr("d");
+                    
+                    } else if (v === "treemap") {
+                        path = chart.$.main.selectAll("rect").size();
                     } else {
                         // donut, gauge, pie
                         path = chart.$.arc.selectAll("path").attr("d");

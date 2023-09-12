@@ -33,10 +33,14 @@ $font-family: sans-serif, Arial, "nanumgothic", "Dotum";
 .bb-legend-item-title,
 .bb-xgrid-focus,
 .bb-ygrid-focus,
-.bb-ygrid,
-.bb-event-rect,
-.bb-bars path {
-    shape-rendering: crispEdges;
+.bb-ygrid {
+	shape-rendering: crispEdges;
+}
+
+.bb-chart-arcs {
+	.bb-needle {
+		fill: #000;
+	}
 }
 
 /*-- Axis --*/
@@ -150,8 +154,10 @@ rect.bb-circle, use.bb-circle {
 
 /*-- Region --*/
 .bb-region {
-    fill: steelblue;
-    fill-opacity: 0.1;
+    rect {
+        fill: steelblue;
+        fill-opacity: 0.1;
+    }
 
     &.selected rect {
         fill: rgb(39, 201, 3);
@@ -192,6 +198,12 @@ rect.bb-circle, use.bb-circle {
     font-size: 14px;
 }
 
+/*-- Treemap --*/
+.bb-chart-treemaps rect {
+    stroke: #fff;
+    stroke-width: 1px;
+}
+
 /*-- Tooltip --*/
 .bb-tooltip-container {
     z-index: 10;
@@ -207,6 +219,7 @@ rect.bb-circle, use.bb-circle {
     background-color: #fff;
     text-align: left;
     font-size: 11px;
+    white-space: nowrap;
 
     th {
         font-size:12px;
@@ -312,6 +325,19 @@ text.bb-chart-arcs-gauge-title {
         fill: #eaeaea;
         stroke-width: 0;
     }
+
+	/*-- Polar --*/
+	.bb-levels {
+		circle {
+			fill: none;
+			stroke: #848282;
+			stroke-width: .5px;
+		}
+
+		text {
+			fill: #848282;
+		}
+	}
 }
 
 .bb-chart-arc {

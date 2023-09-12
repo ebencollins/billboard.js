@@ -2,6 +2,8 @@
  * Copyright (c) 2017 ~ present NAVER Corp.
  * billboard.js project is licensed under the MIT license
  */
+import type {DataRegionsType} from "../../../../types/types";
+
 /**
  * Axis based chart data config options
  */
@@ -63,13 +65,22 @@ export default {
 
 	/**
 	 * Sort on x axis.
+	 * - **NOTE:** This option works for lineish(area/line/spline/step) types only.
 	 * @name data․xSort
 	 * @memberof Options
 	 * @type {boolean}
 	 * @default true
+	 * @see [Demo](https://naver.github.io/billboard.js/demo/#Data.DataXSort)
 	 * @example
 	 * data: {
-	 *   xSort: false
+	 *   xSort: false,
+	 *   x: "x",
+	 *   columns: [
+	 *     // The line graph will start to be drawn following the x axis sequence
+	 *     // Below data, wil start drawing x=1: 200, x=2: 300, x=3: 100
+	 *     ["x", 3, 1, 2],
+	 *     ["data1", 100, 200, 300]
+	 *   ]
 	 * }
 	 */
 	data_xSort: true,
@@ -119,7 +130,7 @@ export default {
 	 *   }
 	 * }
 	 */
-	data_regions: <{start?: number; end?: number; style?: {dasharray: string;}}[]> {},
+	data_regions: <DataRegionsType> {},
 
 	/**
 	 * Set the stacking to be normalized

@@ -4,7 +4,7 @@
  */
 import {select as d3Select} from "d3-selection";
 import {KEY} from "../../module/Cache";
-import CLASS from "../../config/classes";
+import {$AXIS, $COMMON, $LEVEL, $RADAR, $SHAPE, $TEXT} from "../../config/classes";
 import {getMinMax, getRange, isDefined, isEmpty, isNumber, isUndefined, setTextValue, toArray} from "../../module/util";
 
 /**
@@ -35,20 +35,20 @@ export default {
 		const {config, state: {current}, $el} = $$;
 
 		if ($$.hasType("radar")) {
-			$el.radar = $el.main.select(`.${CLASS.chart}`).append("g")
-				.attr("class", CLASS.chartRadars);
+			$el.radar = $el.main.select(`.${$COMMON.chart}`).append("g")
+				.attr("class", $RADAR.chartRadars);
 
 			// level
 			$el.radar.levels = $el.radar.append("g")
-				.attr("class", CLASS.levels);
+				.attr("class", $LEVEL.levels);
 
 			// axis
 			$el.radar.axes = $el.radar.append("g")
-				.attr("class", CLASS.axis);
+				.attr("class", $AXIS.axis);
 
 			// shapes
 			$el.radar.shapes = $el.radar.append("g")
-				.attr("class", CLASS.shapes);
+				.attr("class", $SHAPE.shapes);
 
 			current.dataMax = config.radar_axis_max || $$.getMinMaxData().max[0].value;
 		}
@@ -126,7 +126,7 @@ export default {
 		// Adjust radar, circles and texts' position
 		if (translate) {
 			radar.attr("transform", translate);
-			main.select(`.${CLASS.chartTexts}`).attr("transform", translate);
+			main.select(`.${$TEXT.chartTexts}`).attr("transform", translate);
 
 			$$.generateRadarPoints();
 			$$.updateRadarLevel();
@@ -176,13 +176,13 @@ export default {
 		});
 
 		const level = radarLevels
-			.selectAll(`.${CLASS.level}`)
+			.selectAll(`.${$LEVEL.level}`)
 			.data(levelData);
 
 		level.exit().remove();
 
 		const levelEnter = level.enter().append("g")
-			.attr("class", (d, i) => `${CLASS.level} ${CLASS.level}-${i}`);
+			.attr("class", (d, i) => `${$LEVEL.level} ${$LEVEL.level}-${i}`);
 
 		levelEnter.append("polygon")
 			.style("visibility", config.radar_level_show ? null : "hidden");
@@ -231,7 +231,7 @@ export default {
 		axis.exit().remove();
 
 		const axisEnter = axis.enter().append("g")
-			.attr("class", (d, i) => `${CLASS.axis}-${i}`);
+			.attr("class", (d, i) => `${$AXIS.axis}-${i}`);
 
 		config.radar_axis_line_show && axisEnter.append("line");
 		config.radar_axis_text_show && axisEnter.append("text");
@@ -290,31 +290,24 @@ export default {
 				});
 		}
 
-		$$.bindEvent();
+		$$.bindRadarEvent();
 	},
 
-	bindEvent(): void {
+	bindRadarEvent(): void {
 		const $$ = this;
 		const {config, state, $el: {radar, svg}} = $$;
-		const focusOnly = config.point_focus_only;
+		const focusOnly = $$.isPointFocusOnly();
 		const {inputType, transiting} = state;
 
 		if (config.interaction_enabled) {
 			const isMouse = inputType === "mouse";
-			const getIndex = event => {
-				let target = event.target;
 
-				// in case of multilined axis text
-				if (/tspan/i.test(target.tagName)) {
-					target = target.parentNode;
-				}
-
-				const d: any = d3Select(target).datum();
-
-				return d && Object.keys(d).length === 1 ? d.index : undefined;
-			};
 			const hide = event => {
-				const index = getIndex(event);
+				state.event = event;
+
+				// const index = getIndex(event);
+
+				const index = $$.getDataIndexFromEvent(event);
 				const noIndex = isUndefined(index);
 
 				if (isMouse || noIndex) {
@@ -339,9 +332,9 @@ export default {
 					}
 
 					state.event = event;
-					const index = getIndex(event);
+					const index = $$.getDataIndexFromEvent(event);
 
-					$$.selectRectForSingle(svg.node(), null, index);
+					$$.selectRectForSingle(svg.node(), index);
 					isMouse ? $$.setOverOut(true, index) : $$.callOverOutForTouch(index);
 				})
 				.on("mouseout", isMouse ? hide : null);

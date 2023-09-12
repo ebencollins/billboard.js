@@ -24,7 +24,9 @@ import shapeGauge from "../../ChartInternal/shape/gauge";
 import shapeBubble from "../../ChartInternal/shape/bubble";
 import shapeLine from "../../ChartInternal/shape/line";
 import shapePoint from "../../ChartInternal/shape/point";
+import shapePolar from "../../ChartInternal/shape/polar";
 import shapeRadar from "../../ChartInternal/shape/radar";
+import shapeTreemap from "../../ChartInternal/shape/treemap";
 
 // Options
 import optPoint from "../Options/common/point";
@@ -37,10 +39,13 @@ import optScatter from "../Options/shape/scatter";
 import optSpline from "../Options/shape/spline";
 
 // Non-Axis based
+import optArc from "../Options/shape/arc";
 import optDonut from "../Options/shape/donut";
 import optGauge from "../Options/shape/gauge";
 import optPie from "../Options/shape/pie";
+import optPolar from "../Options/shape/polar";
 import optRadar from "../Options/shape/radar";
+import optTreemap from "../Options/shape/treemap";
 
 export {
 	area,
@@ -55,10 +60,12 @@ export {
 	gauge,
 	line,
 	pie,
+	polar,
 	radar,
 	scatter,
 	spline,
-	step
+	step,
+	treemap
 };
 
 /**
@@ -118,9 +125,18 @@ let spline = (): string => (extendLine(undefined, [optSpline]), (spline = () => 
 let step = (): string => (extendLine(), (step = () => TYPE.STEP)());
 
 // Arc types
-let donut = (): string => (extendArc(undefined, [optDonut]), (donut = () => TYPE.DONUT)());
-let gauge = (): string => (extendArc([shapeGauge], [optGauge]), (gauge = () => TYPE.GAUGE)());
-let pie = (): string => (extendArc(undefined, [optPie]), (pie = () => TYPE.PIE)());
+let donut = (): string => (
+	extendArc(undefined, [optArc, optDonut]), (donut = () => TYPE.DONUT)()
+);
+let gauge = (): string => (
+	extendArc([shapeGauge], [optArc, optGauge]), (gauge = () => TYPE.GAUGE)()
+);
+let pie = (): string => (
+	extendArc(undefined, [optArc, optPie]), (pie = () => TYPE.PIE)()
+);
+let polar = (): string => (
+	extendArc([shapePolar], [optArc, optPolar]), (polar = () => TYPE.POLAR)()
+);
 let radar = (): string => (
 	extendArc([shapePoint, shapeRadar], [optPoint, optRadar]), (radar = () => TYPE.RADAR)()
 );
@@ -135,4 +151,9 @@ let candlestick = (): string => (
 );
 let scatter = (): string => (
 	extendAxis([shapePoint], [optPoint, optScatter]), (scatter = () => TYPE.SCATTER)()
+);
+
+// Non Axis based types
+let treemap = (): string => (
+	extendAxis([shapeTreemap], [optTreemap]), (treemap = () => TYPE.TREEMAP)()
 );

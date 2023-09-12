@@ -2,10 +2,9 @@
  * Copyright (c) 2017 ~ present NAVER Corp.
  * billboard.js project is licensed under the MIT license
  */
-import {DataItem} from "../../../types/types";
+import type {DataItem} from "../../../types/types";
 import {extend, isUndefined, isArray} from "../../module/util";
-
-type DataParam = {x: number, value: number, id: string, index: number}[];
+import type {IDataRow} from "../../ChartInternal/data/IData";
 
 /**
  * Get data loaded in the chart.
@@ -25,7 +24,7 @@ type DataParam = {x: number, value: number, id: string, index: number}[];
  * // Get all data
  * chart.data();
  */
-function data(targetIds: string|string[]): DataItem[] {
+const data = function(targetIds: string|string[]): DataItem[] {
 	const {targets} = this.internal.data;
 
 	if (!isUndefined(targetIds)) {
@@ -35,7 +34,7 @@ function data(targetIds: string|string[]): DataItem[] {
 	}
 
 	return targets;
-}
+};
 
 extend(data, {
 	/**
@@ -98,7 +97,7 @@ extend(data, {
 	 * @function data․names
 	 * @instance
 	 * @memberof Chart
-	 * @param {object} names If this argument is given, the names of data will be updated. If not given, the current names will be returned. The format of this argument is the same as
+	 * @param {object} names If this argument is given, the names of data will be updated. If not given, the current names will be returned. The format of this argument is the same as [data.names](./Options.html#.data%25E2%2580%25A4names).
 	 * @returns {object} Corresponding names according its key value, if specified names values.
 	 * @example
 	 * // Get current names
@@ -111,7 +110,7 @@ extend(data, {
 	 *  data2: "New Name 2"
 	 *});
 	 */
-	names: function(names?: Array<{ [key: string]: string; }>): {[key: string]: string} {
+	names: function(names?: Array<{ [key: string]: string|null; }>): {[key: string]: string|null} {
 		const $$ = this.internal;
 
 		return $$.updateDataAttributes("names", names);
@@ -173,7 +172,7 @@ extend(data, {
 	 * chart.data.min();
 	 * // --> [{x: 0, value: 30, id: "data1", index: 0}, ...]
 	 */
-	min: function(): DataParam {
+	min: function(): IDataRow[] {
 		return this.internal.getMinMaxData().min;
 	},
 
@@ -188,7 +187,7 @@ extend(data, {
 	 * chart.data.max();
 	 * // --> [{x: 3, value: 400, id: "data1", index: 3}, ...]
 	 */
-	max: function(): DataParam {
+	max: function(): IDataRow[] {
 		return this.internal.getMinMaxData().max;
 	}
 });

@@ -3,7 +3,7 @@
  * billboard.js project is licensed under the MIT license
  */
 import {window} from "../../module/browser";
-import {notEmpty, isDefined} from "../../module/util";
+import {isDefined, isEmpty, notEmpty} from "../../module/util";
 
 export default {
 	/**
@@ -31,7 +31,7 @@ export default {
 
 			state.resizing = true;
 
-			this.flush(false, true);
+			this.flush(false);
 			$$.resizeFunction();
 		}
 	},
@@ -100,18 +100,27 @@ export default {
 	 */
 	destroy(): null {
 		const $$ = this.internal;
-		const {$el: {chart, svg}} = $$;
+		const {$el: {chart, style, svg}} = $$;
 
 		if (notEmpty($$)) {
 			$$.callPluginHook("$willDestroy");
 			$$.charts.splice($$.charts.indexOf(this), 1);
+
+			// detach events
+			$$.unbindAllEvents();
 
 			// clear timers && pending transition
 			svg.select("*").interrupt();
 			$$.resizeFunction.clear();
 
 			window.removeEventListener("resize", $$.resizeFunction);
-			chart.classed("bb", false).html("");
+			chart.classed("bb", false)
+				.style("position", null)
+				.selectChildren()
+				.remove();
+
+			// remove <style> element added by boost.useCssRule option
+			style && style.parentNode.removeChild(style);
 
 			// releasing own references
 			Object.keys(this).forEach(key => {
@@ -133,7 +142,10 @@ export default {
 	},
 
 	/**
-	 * Get or set single config option value.
+	 * Get or set config option value.
+	 * - **NOTE**
+	 *  - The option key name must be specified as the last level.
+	 *  - when no argument is given, will return all specified generation options object only. (will exclude any other options not specified at the initialization)
 	 * @function config
 	 * @instance
 	 * @memberof Chart
@@ -143,22 +155,34 @@ export default {
 	 * - **NOTE:** Doesn't guarantee work in all circumstances. It can be applied for limited options only.
 	 * @returns {*}
 	 * @example
+	 *
 	 * // Getter
 	 * chart.config("gauge.max");
 	 *
+	 * // Getter specified with top level key name will not work.
+	 * // The option key name must be specified as the last level.
+	 * // chart.config("gauge"); // will not work
+	 *
+	 * // without any arguments, it returns generation config object
+	 * chart.config();  // {data: { ... }, axis: { ... }, ...}
+	 *
 	 * // Setter
 	 * chart.config("gauge.max", 100);
+	 *
+	 * // Setter specified with top level key name will not work.
+	 * // The option key name must be specified as the last level.
+	 * // chart.config("gauge", {min: 10, max: 20}); // will not work
 	 *
 	 * // Setter & redraw with the new option
 	 * chart.config("gauge.max", 100, true);
 	 */
 	config(name: string, value?: any, redraw?: boolean): any {
 		const $$ = this.internal;
-		const {config} = $$;
+		const {config, state} = $$;
 		const key = name?.replace(/\./g, "_");
 		let res;
 
-		if (key in config) {
+		if (name && key in config) {
 			if (isDefined(value)) {
 				config[key] = value;
 				res = value;
@@ -167,6 +191,8 @@ export default {
 			} else {
 				res = config[key];
 			}
+		} else if (arguments.length === 0 || isEmpty(name)) {
+			res = state.orgConfig;
 		}
 
 		return res;

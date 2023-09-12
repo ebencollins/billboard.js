@@ -6,9 +6,8 @@
 import {expect} from "chai";
 import {select as d3Select} from "d3-selection";
 import {format as d3Format} from "d3-format";
-import CLASS from "../../src/config/classes";
+import {$AREA, $AXIS, $COMMON, $CIRCLE, $EVENT, $LEGEND, $LINE} from "../../src/config/classes";
 import util from "../assets/util";
-import { area } from "../../src/config/resolver/shape";
 
 describe("API load", function() {
 	let chart;
@@ -90,7 +89,7 @@ describe("API load", function() {
 						const main = chart.$.main;
 
 						// updated classname?
-						expect(main.select(`.${CLASS.target}-data1.${CLASS.target}-${className}`).empty()).to.be.false;
+						expect(main.select(`.${$COMMON.target}-data1.${$COMMON.target}-${className}`).empty()).to.be.false;
 
 						// updated category?
 						expect(chart.categories()).to.deep.equal(categories);
@@ -121,9 +120,9 @@ describe("API load", function() {
 					["data3", 800, 500, 900, 500, 1000, 700]
 				],
 				done: () => {
-					const target = main.select(`.${CLASS.chartLine}.${CLASS.target}.${CLASS.target}-data3`);
-					const legendItem = legend.select(`.${CLASS.legendItem}.${CLASS.legendItem}-data3`);
-					const circles = main.selectAll(`.${CLASS.circles}.${CLASS.circles}-data3 circle`);
+					const target = main.select(`.${$LINE.chartLine}.${$COMMON.target}.${$COMMON.target}-data3`);
+					const legendItem = legend.select(`.${$LEGEND.legendItem}.${$LEGEND.legendItem}-data3`);
+					const circles = main.selectAll(`.${$CIRCLE.circles}.${$CIRCLE.circles}-data3 circle`);
 
 					expect(target.size()).to.be.equal(1);
 					expect(legendItem.size()).to.be.equal(1);
@@ -169,10 +168,10 @@ describe("API load", function() {
 					["data3", 400, 500, 450]
 				],
 				done: () => {
-					const target = main.select(`.${CLASS.chartLine}.${CLASS.target}.${CLASS.target}-data3`);
-					const legendItem = legend.select(`.${CLASS.legendItem}.${CLASS.legendItem}-data3`);
-					const circles = main.selectAll(`.${CLASS.circles}.${CLASS.circles}-data3 circle`);
-					const tickTexts = main.selectAll(`.${CLASS.axisX} g.tick text`);
+					const target = main.select(`.${$LINE.chartLine}.${$COMMON.target}.${$COMMON.target}-data3`);
+					const legendItem = legend.select(`.${$LEGEND.legendItem}.${$LEGEND.legendItem}-data3`);
+					const circles = main.selectAll(`.${$CIRCLE.circles}.${$CIRCLE.circles}-data3 circle`);
+					const tickTexts = main.selectAll(`.${$AXIS.axisX} g.tick text`);
 
 					expect(target.size()).to.be.equal(1);
 					expect(legendItem.size()).to.be.equal(1);
@@ -220,9 +219,9 @@ describe("API load", function() {
 						["data3", 800, 500, 900]
 					],
 					done: () => {
-						const target = main.select(`.${CLASS.chartLine}.${CLASS.target}.${CLASS.target}-data3`);
-						const legendItem = legend.select(`.${CLASS.legendItem}.${CLASS.legendItem}-data3`);
-						const tickTexts = main.selectAll(`.${CLASS.axisX} g.tick text`);
+						const target = main.select(`.${$LINE.chartLine}.${$COMMON.target}.${$COMMON.target}-data3`);
+						const legendItem = legend.select(`.${$LEGEND.legendItem}.${$LEGEND.legendItem}-data3`);
+						const tickTexts = main.selectAll(`.${$AXIS.axisX} g.tick text`);
 						const expected = ["cat1", "cat2", "cat3", "cat4", "cat5", "cat6"];
 
 						expect(target.size()).to.be.equal(1);
@@ -250,9 +249,9 @@ describe("API load", function() {
 						["data3", 800, 500, 900, 500, 1000, 700]
 					],
 					done: () => {
-						const target = main.select(`.${CLASS.chartLine}.${CLASS.target}.${CLASS.target}-data3`);
-						const legendItem = legend.select(`.${CLASS.legendItem}.${CLASS.legendItem}-data3`);
-						const tickTexts = main.selectAll(`.${CLASS.axisX} g.tick text`);
+						const target = main.select(`.${$LINE.chartLine}.${$COMMON.target}.${$COMMON.target}-data3`);
+						const legendItem = legend.select(`.${$LEGEND.legendItem}.${$LEGEND.legendItem}-data3`);
+						const tickTexts = main.selectAll(`.${$AXIS.axisX} g.tick text`);
 						const expected = ["new1", "new2", "new3", "new4", "new5", "new6"];
 
 						expect(target.size()).to.be.equal(1);
@@ -379,7 +378,7 @@ describe("API load", function() {
 		});
 
 		it("should be updated the axis label position ", done => {
-			const axisLabel = chart.$.main.select(`.${CLASS.axisYLabel}`);
+			const axisLabel = chart.$.main.select(`.${$AXIS.axisYLabel}`);
 			const dy = +axisLabel.attr("dy");
 
 			chart.load({
@@ -514,6 +513,52 @@ describe("API load", function() {
 				}
 			});
 		});
+
+		it("set options: initialize with empty data", () => {
+			args = {
+				data: {
+					columns: [],
+					type: "area"
+				},
+				background: {
+					color: "red"
+				}
+			};
+		});
+
+		it("check for correct event binding", done => {
+			setTimeout(() => {
+				chart.load({
+					xs: {
+						data: 'dataX'
+					},
+					columns: [
+						["data", 300, 350, 300, 200, 50, 300],
+						["dataX", 1, 2, 3, 4, 5, 6],
+					],
+					done: function() {
+						expect(this.internal.$el.eventRect.classed($EVENT.eventRect)).to.be.true;						
+
+						this.tooltip.show({
+							data: {
+								x: 3,
+								id: "data",
+								value: 300
+							}
+						});
+
+						const {tooltip} = this.$;
+						
+						expect(tooltip.select(".name").text()).to.be.equal("data");
+						expect(+tooltip.select(".value").text()).to.be.equal(300);
+
+						done();
+					}
+				});
+			  }, 1000);
+		});
+
+
 	});
 
 	describe("different type loading", () => {
@@ -569,7 +614,7 @@ describe("API load", function() {
 						expect(areas && !areas.empty()).to.be.true;
 
 						// check for duplicated node appends
-						expect(chart.$.main.selectAll(`.${CLASS.areas}`).size()).to.be.equal(1);
+						expect(chart.$.main.selectAll(`.${$AREA.areas}`).size()).to.be.equal(1);
 						done();
 					}
 				});
@@ -618,7 +663,7 @@ describe("API load", function() {
 					data3: "area-spline-range"
 				},
 				done: function() {
-					expect(this.$.line.areas.filter(`.${CLASS.area}-data3`).size()).to.be.equal(1);
+					expect(this.$.line.areas.filter(`.${$AREA.area}-data3`).size()).to.be.equal(1);
 
 					done();
 				}
@@ -824,14 +869,154 @@ describe("API load", function() {
 					done: function() {
 						const {axis} = this.internal.$el;
 						const {lines} = this.$.line;
-	
+		
 						expect(lines.size()).to.be.equal(1);
 						expect(+axis.y.selectAll(".tick:last-of-type text").text()).to.be.equal(155);
-						expect(lines.attr("d")).to.be.equal("M6,390.5833333333333L124,319.75L241,248.91666666666663L358,178.08333333333331L475,107.25L593,36.41666666666668");
+						expect(lines.attr("d")).to.be.equal("M6,390.583L124,319.75L241,248.917L359,178.083L476,107.25L594,36.417");
 
 						done();
 					}
 				});
+			});
+		});
+	});
+
+	describe("Check 'resizeAfter' option", () => {
+		before(() => {
+			args = {
+				data: {
+					columns: [
+						["data1", 30, 200, 100, 400, 150]
+					],
+					type: "line"
+				}
+			};
+		});
+
+		it("should resize correctly after the load", done => {
+			const {height} = chart.internal.state;
+
+			// when
+			chart.load({
+				columns: [
+				   ["www-abcd-abcd", 100, 200, 150, 300],
+				   ["www2-abcd-abcd", 200, 200, 150, 300],
+				   ["www3-abcd-abcd", 300, 200, 150, 300],
+				   ["www4-abcd-abcd", 400, 200, 150, 300],
+				   ["www5-abcd-abcd", 500, 200, 150, 300],
+				   ["www6-abcd-abcd", 600, 200, 150, 300],
+				   ["www7-abcd-abcd", 700, 200, 150, 300]
+				],
+				resizeAfter: true,
+				done: function() {
+					const lastLegend = this.$.legend.select("g:last-child").node();
+					const chartNode = this.$.chart.node();
+
+					setTimeout(() => {
+						expect(this.internal.state.height).to.be.below(height);
+						expect(lastLegend.getBoundingClientRect().bottom).to.be.below(chartNode.getBoundingClientRect().bottom);
+						
+						done();
+					}, 300);
+				}
+			});
+		});
+
+		it("shouldn't resize after the load", done => {
+			const {height} = chart.internal.state;
+
+			// when
+			chart.load({
+				columns: [
+				   ["www-abcd-abcd", 100, 200, 150, 300],
+				   ["www2-abcd-abcd", 200, 200, 150, 300],
+				   ["www3-abcd-abcd", 300, 200, 150, 300],
+				   ["www4-abcd-abcd", 400, 200, 150, 300],
+				   ["www5-abcd-abcd", 500, 200, 150, 300],
+				   ["www6-abcd-abcd", 600, 200, 150, 300],
+				   ["www7-abcd-abcd", 700, 200, 150, 300]
+				],
+				done: function() {
+					const lastLegend = this.$.legend.select("g:last-child").node();
+					const chartNode = this.$.chart.node();
+
+					setTimeout(() => {
+						expect(this.internal.state.height).to.be.equal(height);
+						expect(lastLegend.getBoundingClientRect().bottom).to.be.above(chartNode.getBoundingClientRect().bottom);
+						
+						done();
+					}, 300);
+				}
+			});
+		});
+
+		it("should resize correctly after the unload", done => {
+			// when
+			chart.load({
+				columns: [
+				   ["www-abcd-abcd", 100, 200, 150, 300],
+				   ["www2-abcd-abcd", 200, 200, 150, 300],
+				   ["www3-abcd-abcd", 300, 200, 150, 300],
+				   ["www4-abcd-abcd", 400, 200, 150, 300],
+				   ["www5-abcd-abcd", 500, 200, 150, 300],
+				   ["www6-abcd-abcd", 600, 200, 150, 300],
+				   ["www7-abcd-abcd", 700, 200, 150, 300],
+				],
+				done: function() {
+					this.unload({
+                        ids: ["www-abcd-abcd", "www2-abcd-abcd", "www3-abcd-abcd"],
+						resizeAfter: true,
+						done: function() {
+							const lastLegend = this.$.legend.select("g:last-child").node();
+							const chartNode = this.$.chart.node();
+
+							setTimeout(() => {
+								const legendBottom = lastLegend.getBoundingClientRect().bottom;
+								const chartBottom = chartNode.getBoundingClientRect().bottom;
+
+								expect(legendBottom).to.be.closeTo(chartBottom, 10);
+								expect(legendBottom < chartBottom).to.be.true;
+								
+								done();
+							}, 300);
+						}
+                    })
+				}
+			});
+		});
+
+		it("shouldn't resize after the unload", done => {
+			// when
+			chart.load({
+				columns: [
+				   ["www-abcd-abcd", 100, 200, 150, 300],
+				   ["www2-abcd-abcd", 200, 200, 150, 300],
+				   ["www3-abcd-abcd", 300, 200, 150, 300],
+				   ["www4-abcd-abcd", 400, 200, 150, 300],
+				   ["www5-abcd-abcd", 500, 200, 150, 300],
+				   ["www6-abcd-abcd", 600, 200, 150, 300],
+				   ["www7-abcd-abcd", 700, 200, 150, 300],
+				],
+				done: function() {
+					this.unload({
+                        ids: ["www-abcd-abcd", "www2-abcd-abcd", "www3-abcd-abcd"],
+						resizeAfter: false,
+						done: function() {
+							const lastLegend = this.$.legend.select("g:last-child").node();
+							const chartNode = this.$.chart.node();
+
+							setTimeout(() => {
+								const legendBottom = lastLegend.getBoundingClientRect().bottom;
+								const chartBottom = chartNode.getBoundingClientRect().bottom;
+
+								expect(legendBottom).to.not.be.closeTo(chartBottom, 10);
+								expect(chartBottom - legendBottom > 25).to.be.true;
+								
+								done();
+							}, 300);
+						}
+                    })
+				}
 			});
 		});
 	});

@@ -2,7 +2,7 @@
  * Copyright (c) 2017 ~ present NAVER Corp.
  * billboard.js project is licensed under the MIT license
  */
-import {AxisType} from "../../../types/types";
+import type {AxisType} from "../../../types/types";
 
 export default {
 	/**
@@ -25,9 +25,14 @@ export default {
 
 		if ($$.axis) {
 			const position = $$.axis?.getLabelPositionById(id);
+			const width = $$.axis.getMaxTickWidth(id, withoutRecompute);
+			const gap = width === 0 ? 0.5 : 0;
 
-			return $$.axis.getMaxTickWidth(id, withoutRecompute) +
-				(position.isInner ? 20 : 40);
+			return width + (
+				$$.config.padding?.mode === "fit" ?
+					position.isInner ? (10 + gap) : 10 :
+					position.isInner ? (20 + gap) : 40
+			);
 		} else {
 			return 40;
 		}
@@ -38,7 +43,10 @@ export default {
 		const {config, state} = $$;
 		const {current, rotatedPadding, isLegendRight, isLegendInset} = state;
 		const isRotated = config.axis_rotated;
-		let h = 30;
+		const isFitPadding = config.padding?.mode === "fit";
+		const isInner = config[`axis_${id}_inner`];
+		const hasLabelText = config[`axis_${id}_label`].text;
+		let h = config.padding?.mode === "fit" ? (isInner && !hasLabelText ? (id === "y" ? 1 : 0) : 20) : 30;
 
 		if (id === "x" && !config.axis_x_show) {
 			return 8;
@@ -55,7 +63,7 @@ export default {
 		}
 
 		if (id === "y2" && !config.axis_y2_show) {
-			return rotatedPadding.top;
+			return isFitPadding ? 0 : rotatedPadding.top;
 		}
 
 		const rotate = $$.getAxisTickRotate(id);
@@ -81,7 +89,12 @@ export default {
 	},
 
 	getEventRectWidth(): number {
-		return Math.max(0, this.axis.x.tickInterval());
+		const $$ = this;
+		const {config, axis} = $$;
+		const isInverted = config.axis_x_inverted;
+		const tickInterval = axis.x.tickInterval();
+
+		return Math.max(0, isInverted ? Math.abs(tickInterval) : tickInterval);
 	},
 
 	/**

@@ -2,6 +2,8 @@
  * Copyright (c) 2017 ~ present NAVER Corp.
  * billboard.js project is licensed under the MIT license
  */
+import type {RegionsType} from "../../../../types/types";
+
 /**
  * main config options
  */
@@ -109,12 +111,36 @@ export default {
 	 * @name padding
 	 * @memberof Options
 	 * @type {object}
-	 * @property {object} [padding] padding object
+	 * @property {object|boolean} [padding=true] Set padding of chart, and accepts object or boolean type.
+	 * - `Object`: Specify each side's padding.
+	 * - `false`: Remove padding completely and make shape to fully occupy the container element.
+	 *   - In this case, axes and subchart will be hidden.
+	 *   - To adjust some padding from this state, use `axis.[x|y].padding` option.
+	 * @property {string} [padding.mode] padding mode
+	 * - `"fit"`: Reduce padding as much as possible to make chart fit to the container element for chart types w/axis.<br>When specified, all padding values will be relative from fitted value.
 	 * @property {number} [padding.top] padding on the top of chart
 	 * @property {number} [padding.right] padding on the right of chart
 	 * @property {number} [padding.bottom] padding on the bottom of chart
 	 * @property {number} [padding.left] padding on the left of chart
+	 * @see [Demo](https://naver.github.io/billboard.js/demo/#ChartOptions.Padding)
+	 * @see [Demo: Fit padding](https://naver.github.io/billboard.js/demo/#ChartOptions.FitPadding)
 	 * @example
+	 * // remove padding completely.
+	 * padding: false,
+	 *
+	 * padding: {
+	 *   // specifying mode value, will reduce padding and make fit to the container element.
+	 *   mode: "fit"
+	 *
+	 *   // when mode is "fit", all padding values will be relative from fitted value.
+	 *   // so, 0 will be initial fitted value.
+	 *   top: 20,
+	 *   right: 20,
+	 *   bottom: 20,
+	 *   left: 20
+	 * }
+	 *
+	 * // or specify padding value for each side
 	 * padding: {
 	 *   top: 20,
 	 *   right: 20,
@@ -122,6 +148,8 @@ export default {
 	 *   left: 20
 	 * }
 	 */
+	padding: true,
+	padding_mode: <"fit"|undefined> undefined,
 	padding_left: <number|undefined> undefined,
 	padding_right: <number|undefined> undefined,
 	padding_top: <number|undefined> undefined,
@@ -134,12 +162,43 @@ export default {
 	 * @type {object}
 	 * @property {object} [resize] resize object
 	 * @property {boolean} [resize.auto=true] Set chart resize automatically on viewport changes.
+	 * @property {boolean|number} [resize.timer=true] Set resize timer option.
+	 * - **NOTE:**
+	 *   - The resize function will be called using:
+	 *     - true: `setTimeout()`
+	 *     - false: `requestIdleCallback()`
+	 *   - Given number(delay in ms) value, resize function will be triggered using `setTimer()` with given delay.
 	 * @example
 	 *  resize: {
-	 *      auto: false
+	 *      auto: false,
+	 *
+	 *      // set resize function will be triggered using `setTimer()`
+	 *      timer: true,
+	 *
+	 *      // set resize function will be triggered using `requestIdleCallback()`
+	 *      timer: false,
+	 *
+	 *      // set resize function will be triggered using `setTimer()` with a delay of `100ms`.
+	 *      timer: 100
 	 *  }
 	 */
 	resize_auto: true,
+	resize_timer: true,
+
+	/**
+	 * Set a callback to execute when the chart is clicked.
+	 * @name onclick
+	 * @memberof Options
+	 * @type {Function}
+	 * @default undefined
+	 * @example
+	 * onclick: function(event) {
+	 *   this; // chart instance itself
+	 *   event; // native event object
+	 *   ...
+	 * }
+	 */
+	onclick: <(() => void)|undefined> undefined,
 
 	/**
 	 * Set a callback to execute when mouse/touch enters the chart.
@@ -148,8 +207,9 @@ export default {
 	 * @type {Function}
 	 * @default undefined
 	 * @example
-	 * onover: function() {
+	 * onover: function(event) {
 	 *   this; // chart instance itself
+	 *   event; // native event object
 	 *   ...
 	 * }
 	 */
@@ -162,8 +222,9 @@ export default {
 	 * @type {Function}
 	 * @default undefined
 	 * @example
-	 * onout: function() {
+	 * onout: function(event) {
 	 *   this; // chart instance itself
+	 *   event; // native event object
 	 *   ...
 	 * }
 	 */
@@ -336,15 +397,23 @@ export default {
 	 * @memberof Options
 	 * @type {Array}
 	 * @default []
+	 * @see [Demo](https://naver.github.io/billboard.js/demo/#Region.RegionLabel)
 	 * @example
 	 *  regions: [
 	 *    {
 	 *      axis: "x",
 	 *      start: 1,
 	 *      end: 4,
-	 *      class: "region-1-4"
+	 *      class: "region-1-4",
+	 *      label: {
+	 *      	text: "Region Text",
+	 *      	x: 5,  // position relative of the initial x coordinate
+	 *      	y: 5,  // position relative of the initial y coordinate
+	 *      	color: "red",  // color string
+	 *      	rotated: true  // make text to show in vertical or horizontal
+	 *      }
 	 *    }
 	 *  ]
 	 */
-	regions: <{axis?: string; start?: number; end?: number; class?: string;}[]> []
+	regions: <RegionsType[]> []
 };

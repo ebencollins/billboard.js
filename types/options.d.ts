@@ -3,12 +3,43 @@
  * billboard.js project is licensed under the MIT license
  */
 import {Axis} from "./axis";
-import {ChartTypes, d3Selection, DataItem, GaugeTypes, PrimitiveArray} from "./types";
-import Bubblecompare from "./plugin/bubblecompare/index";
-import Stanford from "./plugin/stanford/index";
-import TextOverlap from "./plugin/textoverlap/index";
+import {ChartTypes, d3Selection, DataItem, PrimitiveArray} from "./types";
 import {Chart} from "./chart";
-import {IData} from "../src/ChartInternal/data/IData";
+import {IArcData, IData, IDataPoint, IDataRow} from "../src/ChartInternal/data/IData";
+import {
+	ArcOptions,
+	AreaOptions,
+	BarOptions,
+	BubbleOptions,
+	CandlestickOptions,
+	DonutOptions,
+	GaugeOptions,
+	LineOptions,
+	PieOptions,
+	PolarOptions,
+	RadarOptions,
+	RadialGradientOptions,
+	ScatterOptions,
+	SplineOptions,
+	TreemapOptions
+} from "./options.shape";
+
+export type FormatFunction = (
+	this: Chart,
+	v: any,
+	id: string,
+	i: number,
+	texts: d3Selection
+) => string;
+
+export type PositionFunction = (
+	this: Chart,
+	type: "x" | "y",
+	v: number,
+	id: string,
+	i: number,
+	texts: d3Selection
+) => number;
 
 export interface ChartOptions {
 	/**
@@ -49,6 +80,24 @@ export interface ChartOptions {
 		imgUrl?: string;
 	};
 
+	boost?: {
+		/**
+		 * Avoid setting inline styles for each shape elements.
+		 * - **NOTE:**
+		 *   - Will append <style> to the head tag and will add shpes' CSS rules dynamically.
+		 *   - For now, covers colors related properties (fill, stroke, etc.) only.
+		 */
+		useCssRule?: boolean;
+
+		/**
+		 * Use Web Worker as possible for processing.
+		 * - **NOTE:**
+		 *   - For now, only applies for data conversion at the initial time.
+		 *   - As of Web Worker's async nature, handling chart instance synchrously is not recommended.
+		 */
+		useWorker?: boolean;
+	};
+
 	size?: {
 		/**
 		 * The desired width of the chart element.
@@ -64,7 +113,27 @@ export interface ChartOptions {
 		height?: number;
 	};
 
-	padding?: {
+	svg?: {
+		/**
+		 * Set svg element's class name
+		 */
+		classname?: string;
+	};
+
+	/**
+	 * Set padding of chart, and accepts object or boolean type.
+	 * - `Object`: Specify each side's padding.
+	 * - `false`: Remove padding completely and make shape to fully occupy the container element.
+	 *   - In this case, axes and subchart will be hidden.
+	 *   - To adjust some padding from this state, use `axis.[x|y].padding` option.
+	 */
+	padding?: boolean | {
+		/**
+		 * Padding mode
+	 	* - `"fit"`: Reduce padding as much as possible to make chart fit to the container element for chart types w/axis.<br>When specified, all padding values will be relative from fitted value.
+		*/
+		mode?: "fit";
+
 		/**
 		 * The padding on the top of the chart.
 		 */
@@ -92,6 +161,14 @@ export interface ChartOptions {
 		 * Indicate if the chart should automatically get resized when the window gets resized.
 		 */
 		auto?: boolean;
+
+		/**
+		 * Set resize timer option.
+		 * - **NOTE:**
+		 *   - The resize function will be called using: true - `setTimeout()`, false - `requestIdleCallback()`.
+		 *   - Given number(delay in ms) value, resize function will be triggered using `setTimer()` with given delay.
+		 */
+		timer?: boolean | number;
 	};
 
 	color?: {
@@ -202,508 +279,20 @@ export interface ChartOptions {
 
 	point?: PointOptions;
 
-	line?: {
-		/**
-		 * Set if null data point will be connected or not.
-		 * If true set, the region of null data will be connected without any data point.
-		 * If false set, the region of null data will not be connected and get empty.
-		 */
-		connectNull?: boolean;
-
-		/**
-		 * Change step type for step chart.
-		 * 'step', 'step-before' and 'step-after' can be used.
-		 */
-		step?: {
-			type?: "step" | "step-before" | "step-after";
-		};
-
-		/**
-		 * Set if min or max value will be 0 on line chart.
-		 */
-		zerobased?: boolean;
-
-		/**
-		 * If set, used to set a css class on each line.
-		 */
-		classes?: string[];
-
-		/**
-		 * Set to false to not draw points on linecharts. Or pass an array of line ids to draw points for.
-		 */
-		point?: boolean | string[];
-	};
-
-	scatter?: {
-		/**
-		 * Set if min or max value will be 0 on scatter chart.
-		 */
-		zerobased?: boolean;
-	};
-
-	area?: {
-		/**
-		 * Set background area above the data chart line.
-		 */
-		above?: boolean;
-
-		/**
-		 * Set area node to be positioned over line node.
-		 */
-		front?: boolean;
-
-		/**
-		 * Set the linear gradient on area.<br><br>
-		 * Or customize by giving below object value:
-		 *  - x {Array}: `x1`, `x2` value
-		 *  - y {Array}: `y1`, `y2` value
-		 *  - stops {Array}: Each item should be having `[offset, stop-color, stop-opacity]` values.
-		 */
-		linearGradient?: boolean | AreaLinearGradientOptions;
-
-		/**
-		 * Set if min or max value will be 0 on area chart.
-		 */
-		zerobased?: boolean;
-	};
-
-	bar?: {
-		/**
-		 * Change the width of bar chart. If ratio is specified, change the width of bar chart by ratio.
-		 */
-		width?: number | {
-			/**
-			 * Set the width of each bar by ratio
-			 */
-			ratio: number;
-
-			/**
-			 * Set max width of each bar
-			 */
-			max?: number;
-		} | {
-			/**
-			 * Set the width option for specific dataset
-			 */
-			[key: string]: number | {
-				ratio: number;
-				max: number;
-			}
-		};
-
-		headers?: Array<{ [key: string]: string; }>;
-
-		/**
-		 * Set threshold ratio to show/hide labels.
-		 */
-		label?: {
-			threshold?: number;
-		}
-
-		/**
-		 * Set if min or max value will be 0 on bar chart.
-		 */
-		zerobased?: boolean;
-
-		/**
-		 * Set space between bars in bar charts
-		 */
-		space?: number;
-
-		/**
-		 * The padding pixel value between each bar.
-		 */
-		padding?: number;
-
-		/**
-		 * Set the radius of bar edge in pixel.
-		 * - NOTE: Only for non-stacking bars.
-		 */
-		radius?: number | {
-			/**
-			 * Set the radius ratio of bar edge in relative the bar's width.
-			 */
-			ratio?: number;
-		};
-
-		/**
-		 * The senstivity offset value for interaction boundary.
-		 */
-		sensitivity?: number;
-	};
-
-	bubble?: {
-		/**
-		 * Set the max bubble radius value
-		 */
-		maxR?: ((this: Chart, d: {}) => number) | number;
-
-		/**
-		 * Set if min or max value will be 0 on bubble chart.
-		 */
-		zerobased?: boolean;
-	};
-
-	candlestick?: {
-		/**
-		 * Change the width of bar chart. If ratio is specified, change the width of bar chart by ratio.
-		 */
-		width?: number | {
-			/**
-			 * Set the width of each bar by ratio
-			 */
-			ratio: number;
-
-			/**
-			 * Set max width of each bar
-			 */
-			max?: number;
-		} | {
-			/**
-			 * Set the width option for specific dataset
-			 */
-			[key: string]: number | {
-				ratio: number;
-				max: number;
-			}
-		};
-
-		color?: {
-			/**
-			 * Change down value color.
-			 */
-			down: string | {
-				/**
-				 * Change down value color for indicated dataset only.
-				 */
-				[key: string]: string;
-			}
-		}
-	};
-
-	radar?: {
-		axis?: {
-			/**
-			 * The max value of axis. If not given, it'll take the max value from the given data.
-			 */
-			max?: number;
-
-			line?: {
-				/**
-				 * Show or hide axis line.
-				 */
-				show?: boolean;
-			};
-
-			text?: {
-				position?: {
-					/**
-					 * x coordinate position, relative the original
-					 */
-					x?: number;
-
-					/**
-					 * y coordinate position, relative the original
-					 */
-					y?: number;
-				};
-
-				/**
-				 * Show or hide axis text.
-				 */
-				show?: boolean;
-			};
-		};
-
-		direction?: {
-			/**
-			 * Set the direction to be drawn.
-			 */
-			clockwise?: boolean;
-		};
-
-		level?: {
-			/**
-			 * Set the level depth.
-			 */
-			depth?: number;
-
-			/**
-			 * Show or hide level.
-			 */
-			show?: boolean;
-
-			text?: {
-				/**
-				 * Set format function for the level value.
-				 */
-				format?: (this: Chart, x: string) => string;
-
-				/**
-				 * Show or hide level text.
-				 */
-				show?: boolean;
-			};
-		}
-
-		size?: {
-			/**
-			 * Set size ratio.
-			 */
-			ratio?: number;
-		}
-	};
-
-	pie?: {
-		label?: {
-			/**
-			 * Show or hide label on each pie piece.
-			 */
-			show?: boolean;
-
-			/**
-			 * Set threshold ratio to show/hide labels.
-			 */
-			threshold?: number;
-
-			/**
-			 * Set formatter for the label on each pie piece.
-			 */
-			format?(this: Chart, value: number, ratio: number, id: string): string;
-
-			/**
-			 * Set ratio of labels position.
-			 */
-			ratio?: ((this: Chart, d: DataItem, radius: number, h: number) => void) | number
-		};
-
-		/**
-		 * Enable or disable expanding pie pieces.
-		 */
-		expand?: boolean | {
-			/**
-			 * Set expand transition time in ms.
-			 */
-			duration?: number;
-
-			/**
-			 * Set expand rate.
-			 */
-			rate?: number;
-		};
-
-		/**
-		 * Sets the inner radius of pie arc.
-		 */
-		innerRadius?: number | {
-			[key: string]: number
-		};
-
-		/**
-		 * Sets the outer radius of pie arc.
-		 */
-		outerRadius?: number | {
-			[key: string]: number
-		};
-
-		/**
-		 * Set padding between data.
-		 */
-		padAngle?: number;
-
-		/**
-		 * Sets the gap between pie arcs.
-		 */
-		padding?: number;
-
-		/**
-		 * Set starting angle where data draws.
-		 */
-		startingAngle?: number;
-	};
-
-	donut?: {
-		label?: {
-			/**
-			 * Show or hide label on each donut piece.
-			 */
-			show?: boolean;
-
-			/**
-			 * Set formatter for the label on each donut piece.
-			 */
-			format?: (this: Chart, value: number, ratio: number, id: string) => string;
-
-			/**
-			 * Set ratio of labels position.
-			 */
-			ratio?: number | ((this: Chart, d: DataItem, radius: number, h: number) => number)
-
-			/**
-			 * Set threshold ratio to show/hide labels.
-			 */
-			threshold?: number;
-		};
-
-		/**
-		 * Enable or disable expanding donut pieces.
-		 */
-		expand?: boolean | {
-			/**
-			 * Set expand transition time in ms.
-			 */
-			duration?: number;
-
-			/**
-			 * Set expand rate.
-			 */
-			rate?: number;
-		};
-
-		/**
-		 * Set padding between data.
-		 */
-		padAngle?: number;
-
-		/**
-		 * Set starting angle where data draws.
-		 */
-		startingAngle?: number;
-
-		/**
-		 * Set width of donut chart.
-		 */
-		width?: number;
-
-		/**
-		 * Set title of donut chart.
-		 */
-		title?: string;
-	};
-
-	gauge?: {
-		/**
-		 * Set background color. (The `.bb-chart-arcs-background` element)
-		 */
-		background?: string;
-
-		/**
-		 * Whether this should be displayed
-		 * as a full circle instead of a
-		 * half circle.
-		 */
-		fullCircle?: boolean;
-
-		label?: {
-			/**
-			 * Show or hide label on gauge.
-			 */
-			show?: boolean;
-
-			/**
-			 * Set formatter for the label on gauge.
-			 */
-			format?(this: Chart, value: any, ratio: number): string;
-
-			/**
-			 * Set customized min/max label text.
-			 */
-			extents?(this: Chart, value: number, isMax: boolean): string | number;
-
-			/**
-			 * Set threshold ratio to show/hide labels.
-			 */
-			threshold?: number;
-		};
-
-		/**
-		 * Enable or disable expanding gauge pieces.
-		 */
-		expand?: boolean | {
-			/**
-			 * Set expand transition time in ms.
-			 */
-			duration?: number;
-
-			/**
-			 * Set expand rate.
-			 */
-			rate?: number;
-		};
-
-		/**
-		 * Set type of the gauge.
-		 */
-		type?: GaugeTypes;
-
-		/**
-		 * Set min value of the gauge.
-		 */
-		min?: number;
-
-		/**
-		 * Set max value of the gauge.
-		 */
-		max?: number;
-
-		/**
-		 * Set starting angle where data draws.
-		 */
-		startingAngle?: number;
-
-		/**
-		 * Set title of gauge chart. Use `\n` character to enter line break.
-		 */
-		title?: string;
-
-		/**
-		 * Set units of the gauge.
-		 */
-		units?: string;
-
-		/**
-		 * Set width of gauge chart.
-		 */
-		width?: number;
-
-		/**
-		 * Set minimal width of gauge arcs until the innerRadius disappears.
-		 */
-		arcs?: {
-			minWidth?: number;
-		};
-
-		/**
-		 * Set the length of the arc to be drawn in percent from -100 to 100.
-		 * Negative value will draw the arc **counterclockwise**.
-		 */
-		arcLength?: number;
-	};
-
-	spline?: {
-		interpolation?: {
-			/**
-			 * Set custom spline interpolation
-			 */
-			type?: "basis"
-			| "basis-open"
-			| "bundle"
-			| "cardinal"
-			| "cardinal-closed"
-			| "cardinal-open"
-			| "catmull-rom"
-			| "catmull-rom-closed"
-			| "catmull-rom-open"
-			| "monotone-x"
-			| "monotone-y"
-			| "natural"
-			| "linear-closed"
-			| "linear"
-			| "step"
-			| "step-after"
-			| "step-before"
-		};
-	};
+	arc?: ArcOptions;
+	area?: AreaOptions;
+	bar?: BarOptions;
+	bubble?: BubbleOptions;
+	candlestick?: CandlestickOptions;
+	donut?: DonutOptions;
+	gauge?: GaugeOptions;
+	line?: LineOptions;
+	polar?: PolarOptions;
+	pie?: PieOptions;
+	radar?: RadarOptions;
+	scatter?: ScatterOptions;
+	spline?: SplineOptions;
+	treemap?: TreemapOptions;
 
 	/**
 	 * Set a callback to execute when the chart is initialized.
@@ -726,14 +315,19 @@ export interface ChartOptions {
 	onrendered?(this: Chart): void;
 
 	/**
+	 * Set a callback to execute when the chart is clicked.
+	 */
+	onclick?(this: Chart, event: Event): void;
+
+	/**
 	 * Set a callback to execute when mouse/touch enters the chart.
 	 */
-	onover?(this: Chart): void;
+	onover?(this: Chart, event: Event): void;
 
 	/**
 	 * Set a callback to execute when mouse/touch leaves the chart.
 	 */
-	onout?(this: Chart): void;
+	onout?(this: Chart, event: Event): void;
 
 	/**
 	 * Set a callback to execute when user resizes the screen.
@@ -755,7 +349,7 @@ export interface ChartOptions {
 	/**
 	 * Set plugins
 	 */
-	plugins?: Array<(Bubblecompare | Stanford | TextOverlap)>;
+	plugins?: Array<InstanceType<any>>;
 
 	/**
 	 * Control the render timing
@@ -809,29 +403,8 @@ export interface ChartOptions {
 	};
 }
 
-export interface AreaLinearGradientOptions {
-	/**
-	 * x1, x2 attributes
-	 */
-	x?: [number, number];
-
-	/**
-	 * y1, y2 attributes
-	 */
-	y?: [number, number];
-
-	/**
-	 * The ramp of colors to use on a gradient
-	 *
-	 * offset, stop-color, stop-opacity
-	 * - setting 'null' for stop-color, will set its original data color
-	 * - setting 'function' for stop-color, will pass data id as argument. It should return color string or null value
-	 */
-	stops?: Array<[number, string | null | ((this: Chart, id: string) => string), number]>;
-}
-
 export interface RegionOptions {
-	axis?: string;
+	axis?: "x" | "y" | "y2";
 	start?: string | number | Date;
 	end?: string | number | Date;
 	class?: string;
@@ -879,27 +452,62 @@ export interface LegendOptions {
 		 */
 		tile?: {
 			/**
-			 * Tile width.
+			 * Set width for 'rectangle' legend item tile element.
 			 */
 			width?: number;
 
 			/**
-			 * Tile height
+			 * Set height for 'rectangle' legend item tile element.
 			 */
 			height?: number;
+
+			/**
+			 * Set legend item shape type.
+			 */
+			type?: "circle" | "rectangle";
+
+			/**
+			 * Set the radius for 'circle' legend item tile type.
+			 */
+			r?: number;
 		};
+
+		/**
+		 * Set legend item interaction.
+		 *  - **NOTE:**
+		 *    - This setting will not have effect on `.toggle()` method.
+		 *    - `legend.item.onXXX` listener options will work if set, regardless of this option value.
+		 */
+		interaction?: boolean | {
+			/**
+			 * Set legend item to interact on double click.
+			 *  - **NOTE:**
+			 *    - Double clicking will make focused clicked dataseries only, hiding all others.
+			 *      - for single click case, `click + altKey(Win)/optionKey(Mac OS)` to have same effect.
+			 *    - To return initial state(which all dataseries are showing), double click current focused legend item again.
+			 *      - for single click case, `click + altKey(Win)/optionKey(Mac OS)` to have same effect.
+			 *    - In this case, default `click` interaction will be disabled.
+			 */
+			dblclick?: boolean;
+		};
+
 		/**
 		 * Set click event handler to the legend item.
+		 *  - **NOTE:**
+		 *    - When set, default `click` interaction will be disabled.
+		 *    - When `interaction.dblclick=true` is set, will be called on double click.
 		 */
 		onclick?(this: Chart, id: string): void;
 
 		/**
 		 * Set mouseover event handler to the legend item.
+		 *  - **NOTE:** When set, default `mouseover` interaction will be disabled.
 		 */
 		onover?(this: Chart, id: string): void;
 
 		/**
 		 * Set mouseout event handler to the legend item.
+		 *  - **NOTE:** When set, default `mouseout` interaction will be disabled.
 		 */
 		onout?(this: Chart, id: string): void;
 	};
@@ -961,12 +569,14 @@ export interface TooltipOptions {
 		name?(this: Chart, name: string, ratio: number, id: string, index: number): string;
 
 		/**
-		 * Set format for the value of each data in tooltip.
-		 * Specified function receives name, ratio, id and index of the data point to show.
-		 * ratio will be undefined if the chart is not donut/pie/gauge.
-		 * If undefined returned, the row of that value will be skipped.
+		 * Set format for the value of each data in tooltip. If undefined returned, the row of that value will be skipped to be called.
+		 *  - Will pass following arguments to the given function:
+		 *    - `value {string}`: Value of the data point
+		 *    - `ratio {number}`: Ratio of the data point in the `pie/donut/gauge` and `area/bar` when contains grouped data. Otherwise is `undefined`.
+		 *    - `id {string}`: id of the data point
+		 *    - `index {number}`: Index of the data point
 		 */
-		value?(this: Chart, value: any, ratio: number, id: string, index: number): string;
+		value?(this: Chart, value: number, ratio: number | undefined, id: string, index: number): string;
 	};
 	/**
 	 * Set tooltip values order
@@ -998,10 +608,10 @@ export interface TooltipOptions {
 	 */
 	contents?: ((
 		this: Chart,
-		data: any,
-		defaultTitleFormat: string,
-		defaultValueFormat: string,
-		color: any
+		data: IDataRow[],
+		defaultTitleFormat: (x: Date|number|string) => number|string,
+		defaultValueFormat: (value: number, ratio: number|undefined, id: string) => number|string,
+		color: (d: IDataRow|IArcData|string) => string
 	) => string) | {
 		/**
 		 * Set CSS selector or element reference to bind tooltip.
@@ -1037,14 +647,14 @@ export interface TooltipOptions {
 		/**
 		 * Set x Axis index to be shown at the initialization.
 		 */
-		x?: number;
+		x?: number | string;
 
 		/**
 		 * Set the position of tooltip at the initialization.
 		 */
 		position?: {
-			top?: string;
-			left?: string;
+			top?: number | string;
+			left?: number | string;
 		}
 	};
 
@@ -1109,7 +719,7 @@ export interface SubchartOptions {
 				 * Use custom format for x axis ticks - see 'axis.x.tick.format' option for details.
 				 */
 				format?: string
-					| ((this: Chart, x: number | Date) => string | number)
+					| ((this: Chart, x: Date) => string | number)
 					| ((this: Chart, index: number, categoryName: string) => string);
 				/**
 				 * Show or hide x axis tick line.
@@ -1242,6 +852,11 @@ export interface PointOptions {
 	 */
 	opacity?: number | null;
 
+	/**
+	 * Set the radial gradient on point.
+	 */
+	radialGradient?: RadialGradientOptions;
+
 	select?: {
 		/**
 		 * The radius size of each point on selected.
@@ -1251,8 +866,13 @@ export interface PointOptions {
 
 	/**
 	 * The senstivity value for interaction boundary.
+	 *
+	 * - **Available Values:**
+	 *   - {number}: Absolute sensitivity value which is the distance from the data point in pixel.
+	 *   - "radius": sensitivity based on point's radius
+	 *   - Function: callback for each point to determine the sensitivity
 	 */
-	sensitivity?: number;
+	sensitivity?: number | "radius" | ((d: IDataPoint) => number);
 
 	/**
 	 * The type of point to be drawn
@@ -1325,7 +945,7 @@ export interface Grid {
 		 * If x axis is category axis, value can be category name.
 		 * If x axis is timeseries axis, value can be date string, Date object and unixtime integer.
 		 */
-		lines?: LineOptions[];
+		lines?: GridLineOptions[];
 	};
 
 	y?: {
@@ -1338,7 +958,7 @@ export interface Grid {
 		 * Show additional grid lines along y axis.
 		 * This option accepts array including object that has value, text, position and class.
 		 */
-		lines?: LineOptions[];
+		lines?: GridLineOptions[];
 
 		/**
 		 * Number of y grids to be shown.
@@ -1347,7 +967,7 @@ export interface Grid {
 	};
 }
 
-export interface LineOptions {
+export interface GridLineOptions {
 	value: string | number | Date;
 	text?: string;
 	axis?: string;
@@ -1436,7 +1056,7 @@ export interface Data {
 	/**
 	 * Set custom data name.
 	 */
-	names?: { [key: string]: string };
+	names?: { [key: string]: string|null };
 	/**
 	 * Set custom data class.
 	 * If this option is specified, the element g for the data has an additional class that has the prefix billboard-target- (e.g. billboard-target-additional-data1-class).
@@ -1447,6 +1067,15 @@ export interface Data {
 	 * Set groups for the data for stacking.
 	 */
 	groups?: string[][];
+
+	/**
+	 * Set how zero value will be treated on groups.<br>
+	 * Possible values:
+	 * - `zero`: 0 will be positioned at absolute axis zero point.
+	 * - `positive`: 0 will be positioned at the top of a stack.
+	 * - `negative`: 0 will be positioned at the bottom of a stack.
+	 */
+	groupsZeroAs?: "positive" | "negative" | "zero";
 
 	/**
 	 * Set y axis the data related to. y and y2 can be used.
@@ -1464,6 +1093,7 @@ export interface Data {
 	/**
 	 * Set chart type for each data.
 	 * This setting overwrites data.type setting.
+	 * - **NOTE:** `radar` and `treemap` type can't be combined with other types.
 	 */
 	types?: { [key: string]: ChartTypes };
 
@@ -1504,10 +1134,18 @@ export interface Data {
 		 */
 		format?: FormatFunction | { [key: string]: FormatFunction };
 
-		position?: {
-			/**
-			 * Set each dataset position, relative the original.
-			 */
+		/**
+		 * Set each dataset position, relative the original.
+		 *
+		 * When function is specified, will receives 5 arguments such as `type, v, id, i, texts` and it must return a position number.<br><br>
+		 * The arguments are:<br>
+		 *  - `type` coordinate type string, which will be 'x' or 'y'.
+		 *  - `v` is the value of the data point where the label is shown.
+		 *  - `id` is the id of the data where the label is shown.
+		 *  - `i` is the index of the data series point where the label is shown.
+		 *  - `texts` is the array of whole corresponding data series' text labels.<br><br>
+		 */
+		position?: PositionFunction | {
 			[key: string]: {
 				/**
 				 * x coordinate position, relative the original.
@@ -1529,7 +1167,12 @@ export interface Data {
 				 */
 				y?: number;
 			};
-		}
+		};
+
+		/**
+		 * Rotate label text. Specify degree value in a range of `0 ~ 360`.
+		 */
+		rotate?: number;
 	};
 
 	/**
@@ -1689,11 +1332,3 @@ export interface Data {
 	 */
 	onhidden?(this: Chart, ids: string[]): void;
 }
-
-export type FormatFunction = (
-	this: Chart,
-	v: any,
-	id: string,
-	i: number,
-	texts: SVGTextElement[]
-) => void;

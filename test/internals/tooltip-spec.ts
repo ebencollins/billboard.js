@@ -3,14 +3,16 @@
  * billboard.js project is licensed under the MIT license
  */
 /* eslint-disable */
-import sinon from "sinon";
+// @ts-nocheck
 import {expect} from "chai";
+import sinon from "sinon";
 import {
 	select as d3Select,
 	namespaces as d3Namespaces
 } from "d3-selection";
 import util from "../assets/util";
-import CLASS from "../../src/config/classes";
+import {$SHAPE, $TOOLTIP} from "../../src/config/classes";
+import {isNumber, isUndefined, isString} from "../../src/module/util";
 
 describe("TOOLTIP", function() {
 	let chart;
@@ -72,7 +74,7 @@ describe("TOOLTIP", function() {
 
 		if (expected) {
 			for (let i = 1, el; (el = tooltips[i]); i++) {
-				expect(el.className).to.be.equal(`${CLASS.tooltipName}-${expected[i - 1]}`);
+				expect(el.className).to.be.equal(`${$TOOLTIP.tooltipName}-${expected[i - 1]}`);
 			}
 		}
 	};
@@ -111,13 +113,14 @@ describe("TOOLTIP", function() {
 	});
 
 	describe("Tooltip callbacks", () => {
-		let called = [];
+		const called = [];
 		const spy = {
 			onshow: sinon.spy(function(data) { called.push({ctx: this, data, type: "onshow"}) }),
 			onshown: sinon.spy(function(data) { called.push({ctx: this, data, type: "onshown"}) }),
 			onhide: sinon.spy(function(data) { called.push({ctx: this, data, type: "onhide"}) }),
 			onhidden: sinon.spy(function(data) { called.push({ctx: this, data, type: "onhidden"}) })
 		};
+		let orgArgs;
 
 		const check = fn => {
 			["show", "shown", "hide", "hidden"].forEach((v, i) => {
@@ -131,8 +134,13 @@ describe("TOOLTIP", function() {
 			});
 		});
 
+		after(() => {
+			// restore original args
+			args = orgArgs;
+		});
+
 		afterEach(() => {
-			called = [];
+			called.length = 0;
 
 			check((name) => {
 				spy[name].resetHistory();
@@ -141,9 +149,9 @@ describe("TOOLTIP", function() {
 
 		it("chart tooltip onshow/onshown/onhide/onhidden functions should be called", () => {
 			const expectedData = JSON.stringify([
-				{x: 6, value: 100, id: 'data1', index: 2, name: 'data1'},
-				{x: 6, value: 10, id: 'data2', index: 2, name: 'data2'},
-				{x: 6, value: 110, id: 'data3', index: 2, name: 'data3'}
+				{x: 6, value: 100, id: 'data1', index: 2, r: 2.5, name: 'data1'},
+				{x: 6, value: 10, id: 'data2', index: 2, r: 2.5, name: 'data2'},
+				{x: 6, value: 110, id: 'data3', index: 2, r: 2.5, name: 'data3'}
 			]);
 
 			checkCallback(chart, true);
@@ -161,6 +169,93 @@ describe("TOOLTIP", function() {
 
 				// check the passed data argument
 				expect(JSON.stringify(call.data)).to.be.equal(expectedData);
+			});
+		});
+
+		it("set options", () => {
+			orgArgs = args;
+
+			args = {
+				data: {
+					columns: [
+						["data1", 30, 200, 200, 130, 150, 250],
+						["data2", 130, 100, 140, 150, 150, 50],
+						["data3", 130, 100, 140, 220, 150, 50]
+					],
+					groups: [
+						["data1", "data2"]
+					],
+					type: "bar"
+				},
+				tooltip: {
+					show: true,
+					grouped: false,
+					contents: () => "",
+					onshow: spy.onshow,
+					onshown: spy.onshown,
+					onhide: spy.onhide,
+					onhidden: spy.onhidden
+				}
+			};
+		})
+		
+		it("tooltip events should be called", function(done) {
+			new Promise(resolve => {
+				util.hoverChart(chart, "mousemove", {
+					clientX: 360,
+					clientY: 300
+				});
+
+				setTimeout(resolve, 300);
+			}).then(() => {
+				new Promise(resolve => {
+					util.hoverChart(chart, "mousemove", {
+						clientX: 340,
+						clientY: 300
+					});
+
+					setTimeout(resolve, 300);
+				});
+			}).then(() => {
+				new Promise(resolve => {
+					util.hoverChart(chart, "mousemove", {
+						clientX: 340,
+						clientY: 200
+					});
+
+					setTimeout(resolve, 300);
+				});
+			}).then(() => {
+				new Promise(resolve => {
+					util.hoverChart(chart, "mouseout", {
+						clientX: 0,
+						clientY: 0
+					});
+
+					setTimeout(resolve, 300);
+				});
+			})
+			.then(() => {
+				const expectedFlow = [
+					["onshow", "data3"],
+					["onshown", "data3"],
+					["onshow", "data2"],
+					["onshown", "data2"],
+					["onshow", "data1"],
+					["onshown", "data1"],
+					["onhide", "data1"],
+					["onhidden", "data1"]
+				];
+
+				called.forEach((v, i) => {
+					const {data, type} = v;
+					const d = data[0];
+					
+					expect(d.x).to.be.equal(3);
+					expect([type, d.id]).to.be.deep.equal(expectedFlow[i]);
+				})
+				
+				done();
 			});
 		});
 	});
@@ -216,10 +311,10 @@ describe("TOOLTIP", function() {
 		});
 
 		describe("do not overlap data point", () => {
-			it("should show tooltip on proper position", done => {
+			it("should show tooltip on proper position", () => {
 				const tooltip = chart.$.tooltip;
 				const circles = chart.$.circles;
-				const getCircleRectX = x => circles.filter(`.${CLASS.shape}-${x}`)
+				const getCircleRectX = x => circles.filter(`.${$SHAPE.shape}-${x}`)
 					.node().getBoundingClientRect().x;
 
 				// when
@@ -248,6 +343,61 @@ describe("TOOLTIP", function() {
 				expect(
 					util.parseNum(tooltip.style("left")) + util.parseNum(tooltip.style("width"))
 				).to.be.below(getCircleRectX(5));
+			});
+
+			describe("do not overlap data point", () => {
+				let prevArgs = args;
+
+				before(() => {
+					args = {
+						data: {
+							columns: [
+								["data1", 50, 50],
+								["data2", 100, 100],
+							],
+							types: {
+								data1: "spline",
+								data2: "bar"
+							}
+						}
+					};					
+				});
+
+				after(() => {
+					args = prevArgs;
+				});
+
+				it("check if tooltip position updates according mouse pointer moves", done => {
+					const top = {
+						a: 0, b: 0
+					};
+
+					new Promise((res, rej) => {
+						util.hoverChart(chart, "mousemove", {
+							clientX: 500,
+							clientY: 300
+						});
+
+						setTimeout(res, 300);
+					}).then(() => {
+						top.a = util.parseNum(chart.$.tooltip.style("top"));
+
+						new Promise((res, rej) => {
+							util.hoverChart(chart, "mousemove", {
+								clientX: 500,
+								clientY: 400
+							});
+
+							setTimeout(res, 300);
+						})
+					}).then(() => {
+						top.b = util.parseNum(chart.$.tooltip.style("top"));
+
+						expect(top.b).to.be.greaterThan(top.a);
+
+						done();
+					});
+				})
 			});
 		});
 
@@ -431,17 +581,19 @@ describe("TOOLTIP", function() {
 			});
 
 			it("should have tooltip to nearest", () => {
+				const {eventReceiver} = chart.internal.state;
+
 				util.hoverChart(chart, "mousemove", {clientX: 150, clientY: 300});
-				expect(chart.internal.state.eventReceiver.currentIdx).to.be.equal(0);
+				expect(eventReceiver.currentIdx).to.be.equal(0);
 
 				util.hoverChart(chart, "mousemove", {clientX: 200, clientY: 300});
-				expect(chart.internal.state.eventReceiver.currentIdx).to.be.equal(1);
+				expect(eventReceiver.currentIdx).to.be.equal(1);
 
 				util.hoverChart(chart, "mousemove", {clientX: 425, clientY: 300});
-				expect(chart.internal.state.eventReceiver.currentIdx).to.be.equal(1);
+				expect(eventReceiver.currentIdx).to.be.equal(1);
 
 				util.hoverChart(chart, "mousemove", {clientX: 500, clientY: 300});
-				expect(chart.internal.state.eventReceiver.currentIdx).to.be.equal(2);
+				expect(eventReceiver.currentIdx).to.be.equal(2);
 			})
 
 			it("set step type to step before", () => {
@@ -449,17 +601,19 @@ describe("TOOLTIP", function() {
 			});
 
 			it("should have tooltip to right", () => {
+				const {eventReceiver} = chart.internal.state;
+
 				util.hoverChart(chart, "mousemove", {clientX: 150, clientY: 300});
-				expect(chart.internal.state.eventReceiver.currentIdx).to.be.equal(1);
+				expect(eventReceiver.currentIdx).to.be.equal(1);
 
 				util.hoverChart(chart, "mousemove", {clientX: 200, clientY: 300});
-				expect(chart.internal.state.eventReceiver.currentIdx).to.be.equal(1);
+				expect(eventReceiver.currentIdx).to.be.equal(1);
 
 				util.hoverChart(chart, "mousemove", {clientX: 450, clientY: 300});
-				expect(chart.internal.state.eventReceiver.currentIdx).to.be.equal(2);
+				expect(eventReceiver.currentIdx).to.be.equal(2);
 
 				util.hoverChart(chart, "mousemove", {clientX: 500, clientY: 300});
-				expect(chart.internal.state.eventReceiver.currentIdx).to.be.equal(2);
+				expect(eventReceiver.currentIdx).to.be.equal(2);
 			});
 
 			it("set step type to default", () => {
@@ -467,17 +621,19 @@ describe("TOOLTIP", function() {
 			});
 
 			const checkStepAfter = () => {
+				const {eventReceiver} = chart.internal.state;
+
 				util.hoverChart(chart, "mousemove", {clientX: 150, clientY: 300});
-				expect(chart.internal.state.eventReceiver.currentIdx).to.be.equal(0);
+				expect(eventReceiver.currentIdx).to.be.equal(0);
 
 				util.hoverChart(chart, "mousemove", {clientX: 200, clientY: 300});
-				expect(chart.internal.state.eventReceiver.currentIdx).to.be.equal(0);
+				expect(eventReceiver.currentIdx).to.be.equal(0);
 
 				util.hoverChart(chart, "mousemove", {clientX: 450, clientY: 300});
-				expect(chart.internal.state.eventReceiver.currentIdx).to.be.equal(1);
+				expect(eventReceiver.currentIdx).to.be.equal(1);
 
 				util.hoverChart(chart, "mousemove", {clientX: 500, clientY: 300});
-				expect(chart.internal.state.eventReceiver.currentIdx).to.be.equal(1);
+				expect(eventReceiver.currentIdx).to.be.equal(1);
 			}
 
 			it("should have tooltip to left", () => {
@@ -501,13 +657,68 @@ describe("TOOLTIP", function() {
 			});
 
 			it("should change when enter from right", () => {
+				const {eventReceiver} = chart.internal.state;
+
 				util.hoverChart(chart, "mousemove", {clientX: 350, clientY: 300});
-				expect(chart.internal.state.eventReceiver.currentIdx).to.be.equal(1);
+				expect(eventReceiver.currentIdx).to.be.equal(1);
 
 				util.hoverChart(chart, "mousemove", {clientX: 250, clientY: 300});
-				expect(chart.internal.state.eventReceiver.currentIdx).to.be.equal(0);
+				expect(eventReceiver.currentIdx).to.be.equal(0);
 			});
 
+		});
+
+		describe("on rotated axis", () => {
+			before(() => {
+				args = {
+					data: {
+					  columns: [
+						["Male", -83, -143, -100, -120, -150, -85],
+						["Female", 130, 100, 140, 175, 150, 50]
+					  ],
+					  type: "bar",
+					  groups: [
+						["Male", "Female"]
+					  ],
+					},
+					axis: {
+						rotated: true,
+						x: {
+							show: false
+						}
+					},
+					grid: {
+						y: {
+							show: true,
+							lines: [
+							{
+								value: 0,
+								class: "base-line"
+							}
+							]
+						}
+					}
+				};
+			});
+
+			it("tooltip shoudn't overflow the chart", () => {
+				const {state} = chart.internal;
+				
+				util.hoverChart(chart, "mousemove", {
+					clientX: 628,
+					clientY: 317
+				});
+
+				const tooltip = chart.$.tooltip;
+				const {offsetWidth, offsetHeight} = tooltip.node();
+				const tooltipLeft = util.parseNum(tooltip.style("left")) + offsetWidth;
+
+				// check for tooltip text line break
+				expect(offsetHeight).to.be.lessThan(70);
+
+				// check for tooltip position to not overflow the chart
+				expect(tooltipLeft).to.be.lessThanOrEqual(state.width);				
+			});
 		});
 
 		describe("Narrow width container's tooltip position", () => {
@@ -660,9 +871,9 @@ describe("TOOLTIP", function() {
 	describe("tooltip order", () => {
 		it("should sort values in data display order", () => {
 			checkTooltip(chart, [
-				`${CLASS.tooltipName}-data1`,
-				`${CLASS.tooltipName}-data2`,
-				`${CLASS.tooltipName}-data3`
+				`${$TOOLTIP.tooltipName}-data1`,
+				`${$TOOLTIP.tooltipName}-data2`,
+				`${$TOOLTIP.tooltipName}-data3`
 			]);
 		});
 
@@ -672,9 +883,9 @@ describe("TOOLTIP", function() {
 
 		it("should sort values in ascending order", () => {
 			checkTooltip(chart, [
-				`${CLASS.tooltipName}-data2`,
-				`${CLASS.tooltipName}-data1`,
-				`${CLASS.tooltipName}-data3`
+				`${$TOOLTIP.tooltipName}-data2`,
+				`${$TOOLTIP.tooltipName}-data1`,
+				`${$TOOLTIP.tooltipName}-data3`
 			]);
 		});
 
@@ -684,9 +895,9 @@ describe("TOOLTIP", function() {
 
 		it("should sort values in descending order", () => {
 			checkTooltip(chart, [
-				`${CLASS.tooltipName}-data3`,
-				`${CLASS.tooltipName}-data1`,
-				`${CLASS.tooltipName}-data2`
+				`${$TOOLTIP.tooltipName}-data3`,
+				`${$TOOLTIP.tooltipName}-data1`,
+				`${$TOOLTIP.tooltipName}-data2`
 			]);
 		});
 
@@ -699,9 +910,9 @@ describe("TOOLTIP", function() {
 
 		it("stacked bar: should sort values in descending order", () => {
 			checkTooltip(chart, [
-				`${CLASS.tooltipName}-data3`,
-				`${CLASS.tooltipName}-data1`,
-				`${CLASS.tooltipName}-data2`
+				`${$TOOLTIP.tooltipName}-data3`,
+				`${$TOOLTIP.tooltipName}-data1`,
+				`${$TOOLTIP.tooltipName}-data2`
 			]);
 		});
 
@@ -711,9 +922,9 @@ describe("TOOLTIP", function() {
 
 		it("stacked bar: should sort values in ascending order", () => {
 			checkTooltip(chart, [
-				`${CLASS.tooltipName}-data2`,
-				`${CLASS.tooltipName}-data1`,
-				`${CLASS.tooltipName}-data3`
+				`${$TOOLTIP.tooltipName}-data2`,
+				`${$TOOLTIP.tooltipName}-data1`,
+				`${$TOOLTIP.tooltipName}-data3`
 			]);
 		});
 
@@ -723,9 +934,9 @@ describe("TOOLTIP", function() {
 
 		it("stacked bar: should be ordered in data input order", () => {
 			checkTooltip(chart, [
-				`${CLASS.tooltipName}-data3`,
-				`${CLASS.tooltipName}-data2`,
-				`${CLASS.tooltipName}-data1`
+				`${$TOOLTIP.tooltipName}-data3`,
+				`${$TOOLTIP.tooltipName}-data2`,
+				`${$TOOLTIP.tooltipName}-data1`
 			]);
 		});
 
@@ -775,6 +986,29 @@ describe("TOOLTIP", function() {
 
 			expect(args.tooltip.onshow.called).to.be.false;
 			expect(args2.tooltip.onshow.called).to.be.true;
+		});
+
+		it("should linked tooltip target instance differs than the originated chart.", () => {
+			const {$el: {eventRect, tooltip}, state} = chart.internal;
+			state.event = {
+				isTrusted: true,
+				currentTarget: eventRect.node(),
+				target: eventRect.node(),
+				clientX: 147,
+				clientY: 14
+			};
+			const index = 4;
+
+			// when
+			chart.internal._handleLinkedCharts(true, index);
+
+			const name = chart2.$.tooltip.selectAll(".name").nodes().map(v => v.textContent);
+			const value = chart2.$.tooltip.selectAll(".value").nodes().map(v => +v.textContent);
+
+			chart2.data().forEach((v, i) => {
+				expect(v.id).to.be.equal(name[i]);
+				expect(v.values[index].value).to.be.equal(value[i]);
+			});
 		});
 	});
 
@@ -943,18 +1177,13 @@ describe("TOOLTIP", function() {
 						["data3", 150, 120, 110, 140, 115, 125]
 					]
 				},
-				interaction: {
-					inputType: {
-						touch: true
-					}
-				},
 				tooltip: {
 					init: {
 						show: true,
 						x: 1,
 						position: {
-							left: "100px",
-							top: "30px"
+							left: 100,
+							top: 30
 						}
 					}
 				}
@@ -967,11 +1196,83 @@ describe("TOOLTIP", function() {
 				left: tooltip.style("left"),
 				top: tooltip.style("top")
 			};
+			const dataLen = chart.data().length;
+			const name = tooltip.selectAll(".name");
+			const value = tooltip.selectAll(".value");
 
 			expect(tooltip.style("display")).to.be.equal("block");
 
-			expect(pos.left).to.be.equal(args.tooltip.init.position.left);
-			expect(pos.top).to.be.equal(args.tooltip.init.position.top);
+			expect(pos.left).to.be.equal(args.tooltip.init.position.left + "px");
+			expect(pos.top).to.be.equal(args.tooltip.init.position.top + "px");
+
+			expect(name.size()).to.be.equal(dataLen);
+			expect(value.size()).to.be.equal(dataLen);
+			expect(+tooltip.select("th").text()).to.be.equal(args.tooltip.init.x);
+		});
+
+		it("set options: data.type='pie'", () => {
+			args.data.type = "pie";
+		});
+
+		it("check if tooltip shows correct data values for pie", () => {
+			const tooltip = chart.$.tooltip;			
+			const name = tooltip.selectAll(".name");
+			const value = tooltip.selectAll(".value");
+
+			expect(name.size()).to.be.equal(1);
+			expect(value.size()).to.be.equal(1);
+
+			expect(name.text()).to.be.equal("data3");
+			expect(value.text()).to.be.equal("37.1%");
+		});
+
+		it("set options: timeseries x axis", () => {
+			args = {
+				data: {
+					x: "x",
+					columns: [
+						["x", "2023-08-24", "2023-08-25", "2023-08-26", "2023-08-27", "2023-08-28", "2023-08-29"],
+						["data1", 30, 200, 100, 400, 150, 250],
+						["data2", 50, 20, 10, 40, 15, 25],
+						["data3", 150, 120, 110, 140, 115, 125]
+					]
+				},
+				axis: {
+					x: {
+						type: "timeseries",
+						tick: {
+							format: "%Y-%m-%d"
+						}
+					}
+				},
+				tooltip: {
+					init: {
+						show: true,
+						x: "2023-08-28"			
+					}
+				}
+			};
+		});
+
+		it("check if tooltip shows correct data values", () => {
+			const tooltip = chart.$.tooltip;
+			const dataLen = chart.data().length;
+			const name = tooltip.selectAll(".name");
+			const value = tooltip.selectAll(".value");
+
+			const valueAtIndex = chart.data().map(v => {
+				return v.values[4].value
+			});
+
+			// is has correct data values?
+			value.each(function(d, i) {
+				expect(+this.textContent).to.be.equal(valueAtIndex[i]);
+			});
+
+			expect(tooltip.node().getBoundingClientRect().x).to.be.closeTo(405, 5);
+			expect(name.size()).to.be.equal(dataLen);
+			expect(value.size()).to.be.equal(dataLen);
+			expect(tooltip.select("th").text()).to.be.equal(args.tooltip.init.x);
 		});
 	});
 
@@ -1007,14 +1308,14 @@ describe("TOOLTIP", function() {
 				clientY: 107
 			});
 
-			let value = +chart.$.tooltip.select(`.${CLASS.tooltipName}-data3 .value`).text();
+			let value = +chart.$.tooltip.select(`.${$TOOLTIP.tooltipName}-data3 .value`).text();
 
 			expect(value).to.be.equal(800);
 
 			// check for circle point shape
 			util.hoverChart(chart, undefined, {clientX: 292, clientY: 34});
 
-			value = +chart.$.tooltip.select(`.${CLASS.tooltipName}-data1 .value`).html();
+			value = +chart.$.tooltip.select(`.${$TOOLTIP.tooltipName}-data1 .value`).html();
 
 			expect(value).to.be.equal(1000);
 		});
@@ -1073,11 +1374,11 @@ describe("TOOLTIP", function() {
 			// check for custom point shape
 			util.hoverChart(chart, undefined, {clientX: 185, clientY: 107});
 
-			let value = chart.$.tooltip.select(`.${CLASS.tooltipName}-data1 .value`).text();
+			let value = chart.$.tooltip.select(`.${$TOOLTIP.tooltipName}-data1 .value`).text();
 
 			expect(value).to.be.equal("Mid: 135 High: 160 Low: 120");
 
-			value = +chart.$.tooltip.select(`.${CLASS.tooltipName}-data2 .value`).text();
+			value = +chart.$.tooltip.select(`.${$TOOLTIP.tooltipName}-data2 .value`).text();
 
 			expect(value).to.be.equal(200);
 		});
@@ -1265,6 +1566,40 @@ describe("TOOLTIP", function() {
 			};
 		});
 
+		it("set options tooltip.contents", () => {
+			args.tooltip.contents = function(data, defaultTitleFormat, defaultValueFormat, color) {
+				const d = data[0];
+				const value = defaultValueFormat(d.value, d?.ratio, d.id);
+				const hasYTickFormat = !!args.axis?.y?.tick?.format;
+
+				expect(typeof value === (hasYTickFormat ? "string" : "number")).to.be.ok;
+
+				return value;
+			};
+		});
+
+		it("tooltip.contents' defaultValueFormat should return number type.", () => {
+			// when
+			chart.tooltip.show({x:1});
+		});
+
+		it("set options tooltip.contents", () => {
+			args.axis = {
+				y: {
+					tick: {
+						format: function(x) {
+							return `${x}`;
+						}
+					}
+				}
+			}
+		});
+
+		it("tooltip.contents' defaultValueFormat should return string type.", () => {
+			// when
+			chart.tooltip.show({x:1});
+		});
+
 		it("tooltip shouldn't be hiding", () => {
 			util.hoverChart(chart, "mousemove", {clientX: 185, clientY: 107});
 			util.hoverChart(chart, "mouseout", {clientX: -100, clientY: -100});
@@ -1407,6 +1742,343 @@ describe("TOOLTIP", function() {
 			expect(chart.$.tooltip.select("th").text()).to.be.equal("1");
 
 			chart.$.chart.style("margin-left", null);
+		});
+	});
+
+	describe("tooltip: candlestick type with xs option", () => {
+		before(() => {
+			args = {
+				data: {
+					xs: {
+						data1: "x"
+					},
+					columns: [
+						["x", "2021-02-20"],
+						["data1", { open: 1300, high: 1369, low: 1200, close: 1339, volume: 100 }]
+					],
+					type: "candlestick",
+					labels: true,
+				},
+				axis: {
+					x: {
+						type: "timeseries",
+						tick: {
+							format: "%Y-%m-%d",
+						}
+					}
+				}
+			};
+		});
+
+		it("should display tooltip", () => {
+			util.hoverChart(chart, "mousemove", {clientX: 180, clientY: 130});
+
+			expect(chart.$.tooltip.select(".value").html())
+				.to.be.equal(`<b>Open:</b> 1300 <b>High:</b> 1369 <b>Low:</b> 1200 <b>Close:</b> 1339 <b>Volume:</b> 100`);
+		});
+	});
+
+	describe("tooltip: bar type within a range", () => {
+		it("should display start ~ end", () => {
+			chart = util.generate({
+				data: {
+					columns: [
+						["data1", [1300, 1339]],
+					],
+					type: "bar",
+				}
+			});
+			util.hoverChart(chart, "mousemove", {clientX: 180, clientY: 130});
+
+			expect(chart.$.tooltip.select(".value").html())
+				.to.be.equal("1300 ~ 1339");
+		});
+	});
+
+	describe("tooltip: format", () => {
+		const spyTitle = sinon.spy();
+		const spyName = sinon.spy();
+		const spy = sinon.spy(function(value, ratio, id, index) {
+			return [value, ratio, id, index];
+		});
+	
+		before(() => {
+			args = {
+				data: {
+					columns: [
+						["data1", 50, 80, 10],
+						["data2", 50, 20, 90]
+					],
+					type: "bar", // for ESM specify as: bar()
+					groups: [
+						["data1", "data2"]
+					],
+				},
+				tooltip: {
+					format: {
+						title: spyTitle,
+						name: spyName,
+						value: spy
+					}
+				}
+			};
+		});
+
+		after(() => {
+			spyTitle.resetHistory();
+			spyName.resetHistory();
+			spy.resetHistory();
+		});
+	
+		it("check if ratio value is given to format function for 'bar' type.", () => {
+			chart.data.values("data1").forEach((v, i) => {
+				chart.tooltip.show({x: i});
+
+				expect(spy.callCount).to.be.equal(args.data.columns.length);
+				expect(spy.args.every(v => v.length === 4)).to.be.true;
+				expect(spy.args.every(v => {
+					const [value, ratio, id, index]= v;
+	
+					return isNumber(value) && isNumber(ratio) && isString(id) && isNumber(index);
+				})).to.be.true;
+
+				// check ratio
+				expect(spy.returnValues.reduce((p, a) => p?.[1] ?? p + a[1], 0)).to.be.equal(1);
+				
+				// title formatter should be called only once
+				expect(spyTitle.callCount).to.be.equal(i + 1);				
+
+				// name formatter should be called as row's data length times
+				expect(spyName.callCount).to.be.equal((i + 1) * 2);
+
+				spy.resetHistory();
+			});
+		});
+
+		it("set option: data.type='area'", () => {
+			args.data.type = "area";
+		});
+
+		it("check if ratio value is given to format function for 'area' type.", () => {
+			chart.data.values("data1").forEach((v, i) => {
+				chart.tooltip.show({x: i});
+
+				expect(spy.callCount).to.be.equal(args.data.columns.length);
+				
+				expect(spy.args.every(v => v.length === 4)).to.be.true;
+				expect(spy.args.every(v => {
+					const [value, ratio, id, index]= v;
+	
+					return isNumber(value) && isNumber(ratio) && isString(id) && isNumber(index);
+				})).to.be.true;
+
+				// check ratio
+				expect(spy.returnValues.reduce((p, a) => p?.[1] ?? p + a[1], 0)).to.be.equal(1);
+
+				spy.resetHistory();
+			});
+		});
+
+		it("set option: data.type='area'", () => {
+			args.data.columns.push(["data3", 50, 20, 90]);
+		});
+
+		it("check correct ratio value is given when contains non-grouped single data series.", () => {
+			chart.data.values("data1").forEach((v, i) => {
+				chart.tooltip.show({x: i});
+
+				expect(spy.callCount).to.be.equal(args.data.columns.length);
+
+				// check ratio
+				expect(spy.returnValues.reduce((p, a) => p?.[1] ?? p + a[1], 0)).to.be.equal(1);
+
+				spy.resetHistory();
+			});
+		});
+
+		it("set options", () => {
+			spy.resetHistory();
+
+			args = {
+				data: {
+					columns: [
+						["data1", [0, 100], [100, 250], 30]
+					],
+					type: "bar"
+			  },
+			  tooltip: {
+				format: {
+				  value: spy
+				}
+			  }
+			};
+		});
+
+		it("check bar ranged data", () => {
+			// when
+			chart.tooltip.show({x: 1});
+
+			expect(spy.callCount).to.be.equal(2);
+
+			expect(spy.args.every(v => v.length === 4)).to.be.true;
+			expect(spy.args.every(v => {
+				const [value, ratio, id, index]= v;
+
+				return isNumber(value) && isUndefined(ratio) && isString(id) && isNumber(index);
+			})).to.be.true;
+
+			spy.resetHistory();
+
+			// when
+			chart.tooltip.show({x: 2});
+
+			expect(spy.callCount).to.be.equal(1);
+		});
+
+		it("set options: area-line-range type", () => {
+			spy.resetHistory();
+
+			args = {
+				data: {
+					columns: [
+						["data1", [199, 160, 125], [180, 150, 130], [135, 120, 110]]
+					],
+					type: "area-line-range"
+			  	},
+				tooltip: {
+					format: {
+						value: spy
+					}
+				}
+			};
+		});
+
+		it("check for area-line-range data", () => {
+			// when
+			chart.tooltip.show({x: 2});
+
+			expect(spy.callCount).to.be.equal(3);
+			expect(spy.args.every(v => v.length === 4)).to.be.true;
+			expect(spy.args.every(v => {
+				const [value, ratio, id, index]= v;
+
+				return isNumber(value) && isUndefined(ratio) && isString(id) && isNumber(index);
+			})).to.be.true;
+			spy.resetHistory();
+
+			// when
+			chart.tooltip.show({x: 1});
+
+			expect(spy.callCount).to.be.equal(3);
+		});
+
+		it("set options: candlestick type", () => {
+			spy.resetHistory();
+
+			args = {
+				data: {
+					columns: [
+						["data1", 
+							[1327, 1369, 1289, 1348],
+							[1348, 1371, 1314, 1320],
+							[1320, 1412, 1314, 1394, 500]
+						]
+					],
+					type: "candlestick"
+			  	},
+				tooltip: {
+					format: {
+						value: spy
+					}
+				}
+			};
+		});
+
+		it("check for candlestick data", () => {
+			const data = chart.data.values("data1");
+
+			// when data contains volume data
+			chart.tooltip.show({x: 2});
+
+			expect(spy.callCount).to.be.equal(data[2].length);
+			expect(spy.args.every(v => v.length === 4)).to.be.true;
+			expect(spy.args.every(v => {
+				const [value, ratio, id, index]= v;
+
+				return isNumber(value) && isUndefined(ratio) && isString(id) && isNumber(index);
+			})).to.be.true;
+
+			spy.resetHistory();
+
+			// when
+			chart.tooltip.show({x: 1});
+
+			expect(spy.callCount).to.be.equal(data[1].length);
+		});
+
+		it("set options: pie type", () => {
+			spy.resetHistory();
+
+			args = {
+				data: {
+					columns: [
+						["data1", 50],
+						["data2", 50],
+					],
+					type: "pie"
+			  	},
+				tooltip: {
+					format: {
+						value: spy
+					}
+				}
+			};
+		});
+
+		it("check for pie data", () => {
+			// when
+			chart.tooltip.show({data: {index: 1}});
+
+			expect(spy.callCount).to.be.equal(1);
+			expect(spy.args.every(v => v.length === 4)).to.be.true;
+			expect(spy.args.every(v => {
+				const [value, ratio, id, index]= v;
+
+				return isNumber(value) && isNumber(ratio) && isString(id) && isNumber(index);
+			})).to.be.true;
+
+			spy.resetHistory();
+		});
+	});	
+
+	describe("tooltip: show", () => {
+		before(() => {
+			args = {
+				data: {
+					columns: [
+					  ["data1", 30, 200, 100, 400, 150, 250],
+					  ["data2", 130, 100, 140, 200, 150, 50]
+					],
+					type: "bar"
+				},
+				tooltip: {
+					show: false
+				}
+			};
+		});
+
+		it("tooltip element should be null", () => {
+			util.hoverChart(chart, "mouseover", {
+				clientX: 360,
+				clientY: 300
+			});
+
+			expect(chart.$.tooltip).to.be.null;
+
+			// check exception when tooltip.show=false
+			expect(
+				chart.internal.setTooltipPosition()
+			).to.not.throw;
 		});
 	});
 });

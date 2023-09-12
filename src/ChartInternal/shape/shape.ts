@@ -23,9 +23,35 @@ import {
 	curveStep as d3CurveStep
 } from "d3-shape";
 import {select as d3Select} from "d3-selection";
-import {d3Selection} from "types/types";
+import type {d3Selection} from "../../../types/types";
 import CLASS from "../../config/classes";
-import {capitalize, getUnique, isObjectType, isNumber, isValue, isUndefined, notEmpty} from "../../module/util";
+import {capitalize, getPointer, getRectSegList, getUnique, isObjectType, isNumber, isValue, isUndefined, notEmpty} from "../../module/util";
+import type {IDataRow, IDataIndice, TIndices} from "../data/IData";
+
+/**
+ * Get grouped data point function for y coordinate
+ * - Note: Grouped(stacking) works only for line and bar types
+ * @param {object} d data vlaue
+ * @returns {Function|undefined}
+ * @private
+ */
+function getGroupedDataPointsFn(d) {
+	const $$ = this;
+	let fn;
+
+	if ($$.isLineType(d)) {
+		fn = $$.generateGetLinePoints($$.getShapeIndices($$.isLineType));
+	} else if ($$.isBarType(d)) {
+		fn = $$.generateGetBarPoints($$.getShapeIndices($$.isBarType));
+	}
+
+	return fn;
+}
+
+export interface IOffset {
+	_$width: number;
+	_$total: number[]
+}
 
 export default {
 	/**
@@ -34,7 +60,7 @@ export default {
 	 * @private
 	 */
 	getDrawShape() {
-		type SHAPE = {
+		type TShape = {
 			area?: any;
 			bar?: any;
 			line?: any;
@@ -42,10 +68,10 @@ export default {
 
 		const $$ = this;
 		const isRotated = $$.config.axis_rotated;
-		const {hasRadar} = $$.state;
-		const shape = {type: <SHAPE> {}, indices: <SHAPE> {}, pos: {}};
+		const {hasRadar, hasTreemap} = $$.state;
+		const shape = {type: <TShape>{}, indices: <TShape>{}, pos: {}};
 
-		["bar", "candlestick", "line", "area"].forEach(v => {
+		!hasTreemap && ["bar", "candlestick", "line", "area"].forEach(v => {
 			const name = capitalize(/^(bubble|scatter)$/.test(v) ? "line" : v);
 
 			if ($$.hasType(v) || $$.hasTypeOf(name) || (
@@ -59,10 +85,15 @@ export default {
 			}
 		});
 
-		if (!$$.hasArcType() || hasRadar) {
+		if (!$$.hasArcType() || hasRadar || hasTreemap) {
+			let cx;
+			let cy;
+
 			// generate circle x/y functions depending on updated params
-			const cx = hasRadar ? $$.radarCircleX : (isRotated ? $$.circleY : $$.circleX);
-			const cy = hasRadar ? $$.radarCircleY : (isRotated ? $$.circleX : $$.circleY);
+			if (!hasTreemap) {
+				cx = hasRadar ? $$.radarCircleX : (isRotated ? $$.circleY : $$.circleX);
+				cy = hasRadar ? $$.radarCircleY : (isRotated ? $$.circleX : $$.circleY);
+			}
 
 			shape.pos = {
 				xForText: $$.generateXYForText(shape.indices, true),
@@ -75,12 +106,25 @@ export default {
 		return shape;
 	},
 
-	getShapeIndices(typeFilter): {[key: string]: number} {
+	/**
+	 * Get shape's indices according it's position within each axis tick.
+	 *
+	 * From the below example, indices will be:
+	 * ==> {data1: 0, data2: 0, data3: 1, data4: 1, __max__: 1}
+	 *
+	 *	data1 data3   data1 data3
+	 *	data2 data4   data2 data4
+	 *	-------------------------
+	 *		 0             1
+	 * @param {Function} typeFilter Chart type filter function
+	 * @returns {object} Indices object with its position
+	 */
+	getShapeIndices(typeFilter): TIndices {
 		const $$ = this;
 		const {config} = $$;
 		const xs = config.data_xs;
 		const hasXs = notEmpty(xs);
-		const indices = {};
+		const indices: TIndices = {};
 		let i: any = hasXs ? {} : 0;
 
 		if (hasXs) {
@@ -101,10 +145,15 @@ export default {
 						continue;
 					}
 
-					for (let k = 0, row; (row = groups[k]); k++) {
-						if (row in ind) {
-							ind[d.id] = ind[row];
+					for (let k = 0, key; (key = groups[k]); k++) {
+						if (key in ind) {
+							ind[d.id] = ind[key];
 							break;
+						}
+
+						// for same grouped data, add other data to same indices
+						if (d.id !== key && xKey) {
+							ind[key] = ind[d.id] ?? i[xKey];
 						}
 					}
 				}
@@ -121,12 +170,28 @@ export default {
 	/**
 	 * Get indices value based on data ID value
 	 * @param {object} indices Indices object
-	 * @param {string} id Data id value
+	 * @param {object} d Data row
+	 * @param {string} caller Caller function name (Used only for 'sparkline' plugin)
 	 * @returns {object} Indices object
 	 * @private
 	 */
-	getIndices(indices, id: string) {
-		const xs = this.config.data_xs;
+	getIndices(indices: TIndices, d: IDataRow, caller?: string): IDataIndice { // eslint-disable-line
+		const $$ = this;
+		const {data_xs: xs, bar_indices_removeNull: removeNull} = $$.config;
+		const {id, index} = d;
+
+		if ($$.isBarType(id) && removeNull) {
+			const ind = {} as IDataIndice;
+
+			// redefine bar indices order
+			$$.getAllValuesOnIndex(index, true)
+				.forEach((v, i) => {
+					ind[v.id] = i;
+					ind.__max__ = i;
+				});
+
+			return ind;
+		}
 
 		return notEmpty(xs) ?
 			indices[xs[id]] : indices;
@@ -138,26 +203,29 @@ export default {
 	 * @returns {number} Max number
 	 * @private
 	 */
-	getIndicesMax(indices): number {
+	getIndicesMax(indices: TIndices | IDataIndice): number {
 		return notEmpty(this.config.data_xs) ?
 			// if is multiple xs, return total sum of xs' __max__ value
 			Object.keys(indices)
 				.map(v => indices[v].__max__ || 0)
-				.reduce((acc, curr) => acc + curr) : indices.__max__;
+				.reduce((acc, curr) => acc + curr) : (indices as IDataIndice).__max__;
 	},
 
-	getShapeX(offset, indices, isSub?: boolean): (d) => number {
+	getShapeX(offset: IOffset, indices, isSub?: boolean): (d) => number {
 		const $$ = this;
 		const {config, scale} = $$;
 		const currScale = isSub ? scale.subX : (scale.zoom || scale.x);
+		const barOverlap = config.bar_overlap;
 		const barPadding = config.bar_padding;
 		const sum = (p, c) => p + c;
+
+		// total shapes half width
 		const halfWidth = isObjectType(offset) && (
 			offset._$total.length ? offset._$total.reduce(sum) / 2 : 0
 		);
 
 		return d => {
-			const ind = $$.getIndices(indices, d.id, "getShapeX");
+			const ind = $$.getIndices(indices, d, "getShapeX");
 			const index = d.id in ind ? ind[d.id] : 0;
 			const targetsNum = (ind.__max__ || 0) + 1;
 			let x = 0;
@@ -166,15 +234,20 @@ export default {
 				const xPos = currScale(d.x, true);
 
 				if (halfWidth) {
-					x = xPos - (offset[d.id] || offset._$width) +
-						offset._$total.slice(0, index + 1).reduce(sum) -
-						halfWidth;
+					const offsetWidth = offset[d.id] || offset._$width;
+
+					x = barOverlap ?
+						xPos - offsetWidth / 2 :
+						xPos - offsetWidth + offset._$total.slice(0, index + 1).reduce(sum) - halfWidth;
 				} else {
-					x = xPos - (isNumber(offset) ? offset : offset._$width) * (targetsNum / 2 - index);
+					x = xPos - (isNumber(offset) ? offset : offset._$width) *
+						(targetsNum / 2 - (
+							barOverlap ? 1 : index
+						));
 				}
 			}
 
-			// adjust x position for bar.padding optionq
+			// adjust x position for bar.padding option
 			if (offset && x && targetsNum > 1 && barPadding) {
 				if (index) {
 					x += barPadding * index;
@@ -204,6 +277,9 @@ export default {
 				value = $$.getRatio("index", d, true);
 			} else if ($$.isBubbleZType(d)) {
 				value = $$.getBubbleZData(d.value, "y");
+			} else if ($$.isBarRangeType(d)) {
+				// TODO use range.getEnd() like method
+				value = value[1];
 			}
 
 			return $$.getYScaleById(d.id, isSub)(value);
@@ -218,10 +294,12 @@ export default {
 	 */
 	getShapeYMin(id: string): number {
 		const $$ = this;
-		const scale = $$.scale[$$.axis.getId(id)];
+		const axisId = $$.axis.getId(id);
+		const scale = $$.scale[axisId];
 		const [yMin] = scale.domain();
+		const inverted = $$.config[`axis_${axisId}_inverted`];
 
-		return !$$.isGrouped(id) && yMin > 0 ? yMin : 0;
+		return !$$.isGrouped(id) && !inverted && yMin > 0 ? yMin : 0;
 	},
 
 	/**
@@ -270,22 +348,30 @@ export default {
 	getShapeOffset(typeFilter, indices, isSub?: boolean): Function {
 		const $$ = this;
 		const {shapeOffsetTargets, indexMapByTargetId} = $$.getShapeOffsetData(typeFilter);
+		const groupsZeroAs = $$.config.data_groupsZeroAs;
 
 		return (d, idx) => {
 			const {id, value, x} = d;
-			const ind = $$.getIndices(indices, id);
+			const ind = $$.getIndices(indices, d);
 			const scale = $$.getYScaleById(id, isSub);
-			const y0 = scale($$.getShapeYMin(id));
+
+			if ($$.isBarRangeType(d)) {
+				// TODO use range.getStart()
+				return scale(value[0]);
+			}
 
 			const dataXAsNumber = Number(x);
+			const y0 = scale(groupsZeroAs === "zero" ? 0 : $$.getShapeYMin(id));
 			let offset = y0;
 
 			shapeOffsetTargets
-				.filter(t => t.id !== id)
+				.filter(t => t.id !== id && ind[t.id] === ind[id])
 				.forEach(t => {
 					const {id: tid, rowValueMapByXValue, rowValues, values: tvalues} = t;
 
-					if (ind[tid] === ind[id] && indexMapByTargetId[tid] < indexMapByTargetId[id]) {
+					// for same stacked group (ind[tid] === ind[id])
+					if (indexMapByTargetId[tid] < indexMapByTargetId[id]) {
+						const rValue = tvalues[dataXAsNumber];
 						let row = rowValues[idx];
 
 						// check if the x values line up
@@ -293,8 +379,15 @@ export default {
 							row = rowValueMapByXValue[dataXAsNumber];
 						}
 
-						if (row?.value * value >= 0 && isNumber(tvalues[dataXAsNumber])) {
-							offset += scale(tvalues[dataXAsNumber]) - y0;
+						if (row?.value * value >= 0 && isNumber(rValue)) {
+							const addOffset = value === 0 ? (
+								(groupsZeroAs === "positive" && rValue > 0) ||
+								(groupsZeroAs === "negative" && rValue < 0)
+							) : true;
+
+							if (addOffset) {
+								offset += scale(rValue) - y0;
+							}
 						}
 					}
 				});
@@ -303,7 +396,28 @@ export default {
 		};
 	},
 
-	getBarW(type, axis, targetsNum: number): number {
+	/**
+	 * Get data's y coordinate
+	 * @param {object} d Target data
+	 * @param {number} i Index number
+	 * @returns {number} y coordinate
+	 * @private
+	 */
+	circleY(d: IDataRow, i: number): number {
+		const $$ = this;
+		const id = d.id;
+		let points;
+
+		if ($$.isGrouped(id)) {
+			points = getGroupedDataPointsFn.bind($$)(d);
+		}
+
+		return points ?
+			points(d, i)[0][1] :
+			$$.getYScaleById(id)($$.getBaseValue(d));
+	},
+
+	getBarW(type, axis, targetsNum: number): number | IOffset {
 		const $$ = this;
 		const {config, org, scale} = $$;
 		const maxDataCount = $$.getMaxDataCount();
@@ -424,5 +538,26 @@ export default {
 				$$.isStepType(d) ?
 					config.line_step_type : "linear"
 			);
+	},
+
+	isWithinBar(that): boolean {
+		const mouse = getPointer(this.state.event, that);
+		const list = getRectSegList(that);
+		const [seg0, seg1] = list;
+		const x = Math.min(seg0.x, seg1.x);
+		const y = Math.min(seg0.y, seg1.y);
+		const offset = this.config.bar_sensitivity;
+		const {width, height} = that.getBBox();
+		const sx = x - offset;
+		const ex = x + width + offset;
+		const sy = y + height + offset;
+		const ey = y - offset;
+
+		const isWithin = sx < mouse[0] &&
+			mouse[0] < ex &&
+			ey < mouse[1] &&
+			mouse[1] < sy;
+
+		return isWithin;
 	}
 };

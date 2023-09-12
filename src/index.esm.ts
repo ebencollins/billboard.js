@@ -16,10 +16,12 @@ export {
 	gauge,
 	line,
 	pie,
+	polar,
 	radar,
 	scatter,
 	spline,
-	step
+	step,
+	treemap
 } from "./config/resolver/shape";
 
 // interaction module

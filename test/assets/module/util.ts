@@ -10,6 +10,7 @@ import {window} from "../../src/module/browser";
 import * as orgUtil from "../../test/assets/module/fake";
 
 export const {
+	addCssRules,
 	asHalfPixel,
 	brushEmpty,
 	callFn,
@@ -50,7 +51,8 @@ export const {
 	mergeObj,
 	notEmpty,
 	parseDate,
-	sanitise,
+	runUntil,
+	sanitize,
 	setTextValue,
 	sortValue,
 	toArray,

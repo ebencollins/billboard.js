@@ -6,7 +6,7 @@
 import {expect} from "chai";
 import {select as d3Select} from "d3-selection";
 import util from "../assets/util";
-import CLASS from "../../src/config/classes";
+import {$AXIS, $BAR, $GAUGE} from "../../src/config/classes";
 import bb from "../../src";
 
 describe("API chart", () => {
@@ -17,6 +17,9 @@ describe("API chart", () => {
 				["data1", 30, 200, 100, 400],
 				["data2", 500, 800, 500, 2000]
 			]
+		},
+		transition: {
+			duration: 0
 		}
 	};
 
@@ -45,24 +48,21 @@ describe("API chart", () => {
 			expect(chart.groups().length).to.be.equal(0);
 		});
 
-		it("should update groups correctly", done => {
+		it("should update groups correctly", function() {
 			const main = chart.$.main;
-			const path = main.select(`.${CLASS.bars}-data1 path`);
+			const path = main.select(`.${$BAR.bars}-data1 path`);
 			const barWidth = util.getBBox(path).width;
 
+			// when
 			chart.groups([
 				["data1", "data2"]
 			]);
 
-			setTimeout(() => {
-				// check for the groups data set
-				expect(chart.groups()[0].length).to.be.equal(chart.data().length);
+			// check for the groups data set
+			expect(chart.groups()[0].length).to.be.equal(chart.data().length);
 
-				// check for the bars were stacked
-				expect(util.getBBox(path).width).to.be.equal(barWidth * 2);
-
-				done();
-			}, 500);
+			// check for the bars were stacked
+			expect(util.getBBox(path).width).to.be.equal(barWidth * 2);
 		});
 	});
 
@@ -115,6 +115,12 @@ describe("API chart", () => {
 			});
 
 			expect(bb.instance.indexOf(chart) === -1).to.be.true;
+
+			const el = <HTMLDivElement>document.getElementById("chart");
+
+			// should revert removing className and styles
+			expect(el.classList.contains("bb")).to.be.false;
+			expect(el.style.position).to.be.equal("");
 		});
 
 		it("should be destroyed without throwing error", done => {
@@ -137,6 +143,20 @@ describe("API chart", () => {
 
 		it("should not throw error when already destroyed", () => {
 			chart.destroy();
+			chart.destroy();
+		});
+
+		it("events should be unbound on destroy", () => {
+			const {internal} = chart;
+			const {$el: {eventRect}} = internal;
+
+			// all bound events are removed
+			chart.internal.unbindAllEvents();
+
+			["mouseover", "mousemove", "mouseout"].forEach(event => {
+				expect(eventRect.on(event)).to.be.undefined;
+			});
+
 			chart.destroy();
 		});
 	});
@@ -179,7 +199,7 @@ describe("API chart", () => {
 			max = +chart.config("gauge.max", expected, true);
 
 			expect(max).to.be.equal(expected);
-			expect(+chart.$.arc.select(`.${CLASS.chartArcsGaugeMax}`).text()).to.be.equal(expected);
+			expect(+chart.$.arc.select(`.${$GAUGE.chartArcsGaugeMax}`).text()).to.be.equal(expected);
 		});
 
 		it("set options", () => {
@@ -200,8 +220,8 @@ describe("API chart", () => {
 		});
 
 		it("check for the axis config update", () => {
-			const axisYTick = chart.$.main.selectAll(`.${CLASS.axisY} .tick`);
-			const expected = [];
+			const axisYTick = chart.$.main.selectAll(`.${$AXIS.axisY} .tick`);
+			const expected: {[key: string]: number}[] = [];
 
 			// axis y tick is outer
 			axisYTick.each(function() {
@@ -232,6 +252,10 @@ describe("API chart", () => {
 				expect(text.style.textAnchor).to.be.equal("start");
 				expect(+tspan.getAttribute("x")).to.be.equal(Math.abs(expected[i].tspan));
 			});
+		});
+
+		it("should return generation options object.", () => {
+			expect(args).to.be.deep.equal(chart.config());
 		});
 	});
 });

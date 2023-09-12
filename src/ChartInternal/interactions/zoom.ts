@@ -3,8 +3,8 @@
  * billboard.js project is licensed under the MIT license
  */
 import {drag as d3Drag} from "d3-drag";
-import {zoomIdentity as d3ZoomIdentity, zoom as d3Zoom} from "d3-zoom";
-import CLASS from "../../config/classes";
+import {zoomIdentity as d3ZoomIdentity, zoom as d3Zoom, ZoomTransform as d3ZoomTransform} from "d3-zoom";
+import {$COMMON, $ZOOM} from "../../config/classes";
 import {callFn, diffDomain, getPointer, isFunction} from "../../module/util";
 
 export default {
@@ -75,16 +75,19 @@ export default {
 		/**
 		 * Update scale according zoom transform value
 		 * @param {object} transform transform object
+		 * @param {boolean} correctTransform if the d3 transform should be updated after rescaling
 		 * @private
 		 */
 		// @ts-ignore
-		zoom.updateTransformScale = (transform: object): void => {
+		zoom.updateTransformScale = (transform: d3ZoomTransform, correctTransform: boolean): void => {
+			const isRotated = config.axis_rotated;
+
 			// in case of resize, update range of orgXScale
 			org.xScale?.range(scale.x.range());
 
 			// rescale from the original scale
 			const newScale = transform[
-				config.axis_rotated ? "rescaleY" : "rescaleX"
+				isRotated ? "rescaleY" : "rescaleX"
 			](org.xScale || scale.x);
 
 			const domain = $$.trimXDomain(newScale.domain());
@@ -92,11 +95,21 @@ export default {
 
 			newScale.domain(domain, org.xDomain);
 
+			// prevent chart from panning off the edge and feeling "stuck"
+			// https://github.com/naver/billboard.js/issues/2588
+			if (correctTransform) {
+				const t = newScale(scale.x.domain()[0]);
+				const tX = isRotated ? transform.x : t;
+				const tY = isRotated ? t : transform.y;
+
+				$$.$el.eventRect.property("__zoom", d3ZoomIdentity.translate(tX, tY).scale(transform.k));
+			}
+
 			if (!$$.state.xTickOffset) {
 				$$.state.xTickOffset = $$.axis.x.tickOffset();
 			}
 
-			scale.zoom = $$.getCustomizedScale(newScale);
+			scale.zoom = $$.getCustomizedXScale(newScale);
 			$$.axis.x.scale(scale.zoom);
 
 			if (rescale) {
@@ -112,7 +125,7 @@ export default {
 		 * @private
 		 */
 		// @ts-ignore
-		zoom.getDomain = (): number|Date[] => {
+		zoom.getDomain = (): (number | Date)[] => {
 			const domain = scale[scale.zoom ? "zoom" : "subX"].domain();
 			const isCategorized = $$.axis.isCategorized();
 
@@ -122,6 +135,7 @@ export default {
 
 			return domain;
 		};
+
 		$$.zoom = zoom;
 	},
 
@@ -162,6 +176,7 @@ export default {
 
 		if (event.sourceEvent) {
 			state.zooming = true;
+			state.domain = undefined;
 		}
 
 		const isMousemove = sourceEvent?.type === "mousemove";
@@ -172,7 +187,7 @@ export default {
 			scale.x.domain(org.xDomain);
 		}
 
-		$$.zoom.updateTransformScale(transform);
+		$$.zoom.updateTransformScale(transform, config.zoom_type === "wheel" && sourceEvent);
 
 		// do zoom transiton when:
 		// - zoom type 'drag'
@@ -193,7 +208,11 @@ export default {
 		$$.state.cancelClick = isMousemove;
 
 		// do not call event cb when is .unzoom() is called
-		!isUnZoom && callFn(config.zoom_onzoom, $$.api, $$.zoom.getDomain());
+		!isUnZoom && callFn(
+			config.zoom_onzoom,
+			$$.api,
+			$$.state.domain ?? $$.zoom.getDomain()
+		);
 	},
 
 	/**
@@ -226,7 +245,11 @@ export default {
 		state.zooming = false;
 
 		// do not call event cb when is .unzoom() is called
-		!isUnZoom && (e || state.dragging) && callFn(config.zoom_onzoomend, $$.api, $$.zoom.getDomain());
+		!isUnZoom && (e || state.dragging) && callFn(
+			config.zoom_onzoomend,
+			$$.api,
+			$$.state.domain ?? $$.zoom.getDomain()
+		);
 	},
 
 	/**
@@ -243,8 +266,15 @@ export default {
 			const xDomain = subX.domain();
 			const delta = 0.015; // arbitrary value
 
-			const isfullyShown = (zoomDomain[0] <= xDomain[0] || (zoomDomain[0] - delta) <= xDomain[0]) &&
-				(xDomain[1] <= zoomDomain[1] || xDomain[1] <= (zoomDomain[1] - delta));
+			const isfullyShown = $$.config.axis_x_inverted ? (
+				zoomDomain[0] >= xDomain[0] || (zoomDomain[0] + delta) >= xDomain[0]
+			) && (
+				xDomain[1] >= zoomDomain[1] || xDomain[1] >= (zoomDomain[1] + delta)
+			) : (
+				zoomDomain[0] <= xDomain[0] || (zoomDomain[0] - delta) <= xDomain[0]
+			) && (
+				xDomain[1] <= zoomDomain[1] || xDomain[1] <= (zoomDomain[1] - delta)
+			);
 
 			// check if the zoomed chart is fully shown, then reset scale when zoom is out as initial
 			if (force || isfullyShown) {
@@ -301,7 +331,7 @@ export default {
 				if (!zoomRect) {
 					zoomRect = $$.$el.main.append("rect")
 						.attr("clip-path", state.clip.path)
-						.attr("class", CLASS.zoomBrush)
+						.attr("class", $ZOOM.zoomBrush)
 						.attr("width", isRotated ? state.width : 0)
 						.attr("height", isRotated ? 0 : state.height);
 				}
@@ -356,13 +386,13 @@ export default {
 		if (resetButton && config.zoom_type === "drag") {
 			if (!$el.zoomResetBtn) {
 				$el.zoomResetBtn = $$.$el.chart.append("div")
-					.classed(CLASS.button, true)
+					.classed($COMMON.button, true)
 					.append("span")
 					.on("click", function() {
 						isFunction(resetButton.onclick) && resetButton.onclick.bind($$.api)(this);
 						$$.api.unzoom();
 					})
-					.classed(CLASS.buttonZoomReset, true)
+					.classed($ZOOM.buttonZoomReset, true)
 					.text(resetButton.text || "Reset Zoom");
 			} else {
 				$el.zoomResetBtn.style("display", null);

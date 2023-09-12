@@ -2,7 +2,7 @@
  * Copyright (c) 2017 ~ present NAVER Corp.
  * billboard.js project is licensed under the MIT license
  */
-import {ChartTypes} from "../../../../types/types";
+import type {ChartTypes, d3Selection} from "../../../../types/types";
 
 /**
  * data config options
@@ -45,6 +45,7 @@ export default {
 
 	/**
 	 * Set custom data name.
+	 * If a name is set to `null`, the series is omitted from the legend.
 	 * @name data․names
 	 * @memberof Options
 	 * @type {object}
@@ -58,7 +59,7 @@ export default {
 	 *   }
 	 * }
 	 */
-	data_names: <{[key: string]: string}> {},
+	data_names: <{[key: string]: string|null}> {},
 
 	/**
 	 * Set custom data class.<br><br>
@@ -93,10 +94,12 @@ export default {
 	 * - gauge
 	 * - line
 	 * - pie
+	 * - polar
 	 * - radar
 	 * - scatter
 	 * - spline
 	 * - step
+	 * - treemap
 	 * @name data․type
 	 * @memberof Options
 	 * @type {string}
@@ -121,10 +124,12 @@ export default {
 	 *   gauge,
 	 *   line,
 	 *   pie,
+	 *   polar,
 	 *   radar,
 	 *   scatter,
 	 *   spline,
-	 *   step
+	 *   step,
+	 *   treemap
 	 * }
 	 *
 	 * bb.generate({
@@ -139,7 +144,7 @@ export default {
 	/**
 	 * Set chart type for each data.<br>
 	 * This setting overwrites data.type setting.
-	 * - **NOTE:** `radar` type can't be combined with other types.
+	 * - **NOTE:** `radar` and `treemap` type can't be combined with other types.
 	 * @name data․types
 	 * @memberof Options
 	 * @type {object}
@@ -167,10 +172,12 @@ export default {
 	 *   gauge,
 	 *   line,
 	 *   pie,
+	 *   polar,
 	 *   radar,
 	 *   scatter,
 	 *   spline,
-	 *   step
+	 *   step,
+	 *   treemap
 	 * }
 	 *
 	 * bb.generate({
@@ -254,6 +261,24 @@ export default {
 	data_groups: <string[][]> [],
 
 	/**
+	 * Set how zero value will be treated on groups.<br>
+	 * Possible values:
+	 * - `zero`: 0 will be positioned at absolute axis zero point.
+	 * - `positive`: 0 will be positioned at the top of a stack.
+	 * - `negative`: 0 will be positioned at the bottom of a stack.
+	 * @name data․groupsZeroAs
+	 * @memberof Options
+	 * @type {string}
+	 * @default "positive"
+	 * @see [Demo](https://naver.github.io/billboard.js/demo/#Data.Groups)
+	 * @example
+	 * data: {
+	 *   groupsZeroAs: "zero" // "positive" or "negative"
+	 * }
+	 */
+	data_groupsZeroAs: <"zero" | "positive" | "negative"> "positive",
+
+	/**
 	 * Set color converter function.<br><br>
 	 * This option should a function and the specified function receives color (e.g. '#ff0000') and d that has data parameters like id, value, index, etc. And it must return a string that represents color (e.g. '#00ff00').
 	 * @name data․color
@@ -296,7 +321,7 @@ export default {
 	 * @property {boolean} [data.labels=false] Show or hide labels on each data points
 	 * @property {boolean} [data.labels.centered=false] Centerize labels on `bar` shape. (**NOTE:** works only for 'bar' type)
 	 * @property {Function} [data.labels.format] Set formatter function for data labels.<br>
-	 * The formatter function receives 4 arguments such as v, id, i, j and it **must return a string**(`\n` character will be used as line break) that will be shown as the label.<br><br>
+	 * The formatter function receives 4 arguments such as `v, id, i, texts` and it **must return a string** (`\n` character will be used as line break) that will be shown as the label.<br><br>
 	 * The arguments are:<br>
 	 *  - `v` is the value of the data point where the label is shown.
 	 *  - `id` is the id of the data where the label is shown.
@@ -305,9 +330,18 @@ export default {
 	 * Formatter function can be defined for each data by specifying as an object and D3 formatter function can be set (ex. d3.format('$'))
 	 * @property {string|object} [data.labels.backgroundColors] Set label text background colors.
 	 * @property {string|object|Function} [data.labels.colors] Set label text colors.
-	 * @property {object} [data.labels.position] Set each dataset position, relative the original.
+	 * @property {object|Function} [data.labels.position] Set each dataset position, relative the original.<br><br>
+	 * When function is specified, will receives 5 arguments such as `type, v, id, i, texts` and it must return a position number.<br><br>
+	 * The arguments are:<br>
+	 *  - `type` coordinate type string, which will be 'x' or 'y'.
+	 *  - `v` is the value of the data point where the label is shown.
+	 *  - `id` is the id of the data where the label is shown.
+	 *  - `i` is the index of the data series point where the label is shown.
+	 *  - `texts` is the array of whole corresponding data series' text labels.<br><br>
 	 * @property {number} [data.labels.position.x=0] x coordinate position, relative the original.
 	 * @property {number} [data.labels.position.y=0] y coordinate position, relative the original.
+	 * @property {object} [data.labels.rotate] Rotate label text. Specify degree value in a range of `0 ~ 360`.
+	 * - **NOTE:** Depend on rotate value, text position need to be adjusted manually(using `data.labels.position` option) to be shown nicely.
 	 * @memberof Options
 	 * @type {object}
 	 * @default {}
@@ -317,13 +351,14 @@ export default {
 	 * @see [Demo: label multiline](https://naver.github.io/billboard.js/demo/#Data.DataLabelMultiline)
 	 * @see [Demo: label overlap](https://naver.github.io/billboard.js/demo/#Data.DataLabelOverlap)
 	 * @see [Demo: label position](https://naver.github.io/billboard.js/demo/#Data.DataLabelPosition)
+	 * @see [Demo: label rotate](https://naver.github.io/billboard.js/demo/#Data.DataLabelRotate)
 	 * @example
 	 * data: {
 	 *   labels: true,
 	 *
 	 *   // or set specific options
 	 *   labels: {
-	 *     format: function(v, id, i, j) {
+	 *     format: function(v, id, i, texts) {
 	 *         ...
 	 *         // to multiline, return with '\n' character
 	 *         return "Line1\nLine2";
@@ -365,6 +400,13 @@ export default {
 	 *         return d.value > 200 ? "cyan" : color;
 	 *     },
 	 *
+	 *     // return x, y coordinate position
+	 *     // apt to handle each text position manually
+	 *     position: function(type, v, id, i, texts) {
+	 *         ...
+	 *         return type == "x" ? 10 : 20;
+	 *     },
+	 *
 	 *     // set x, y coordinate position
 	 *     position: {
 	 *        x: -10,
@@ -375,16 +417,22 @@ export default {
 	 *     position: {
 	 *        data1: {x: 5, y: 5},
 	 *        data2: {x: 10, y: -20}
-	 *     }
+	 *     },
+	 *
+	 *	   // rotate degree for label text
+	 *     rotate: 90
 	 *   }
 	 * }
 	 */
 	data_labels:
 		<boolean | {
 			centered?: boolean;
-			format?: Function;
+			format?: (v: number, id: string, i: number, texts: d3Selection) => number;
 			colors?: string|{[key: string]: string};
-			position?: {[key: string]: number}|{[key: string]: {x?: number; y?: number;}}
+			position?: (type: "x" | "y", v: number, id: string, i: number, texts: d3Selection) => number |
+				{[key: string]: number} |
+				{[key: string]: {x?: number; y?: number;}};
+			rotate?: number;
 		}> {},
 	data_labels_backgroundColors: <string|{[key: string]: string}|undefined> undefined,
 	data_labels_colors: <string|object|Function|undefined> undefined,
@@ -607,7 +655,11 @@ export default {
 	 *       {name: "www.site4.com", upload: 400, download: 100, total: 500}
 	 *     ],
 	 *     keys: {
-	 *       // x: "name", // it's possible to specify 'x' when category axis
+	 *       // case 1: specify 'x' key for category axis
+	 *       x: "name", // 'name' key will be used as category x axis values
+	 *       value: ["upload", "download"]
+	 *
+	 *       // case 2: without 'x' key for non-category axis
 	 *       value: ["upload", "download"]
 	 *     }
 	 * }
@@ -632,6 +684,18 @@ export default {
 	 *     [80, 130, 300],
 	 *     [90, 220, 320]
 	 *   ]
+	 * }
+	 *
+	 * // for 'bar' type, data can contain:
+	 * // - an array of [start, end] data following the order
+	 * data: {
+	 *   rows: [
+	 *      ["data1", "data2"],
+	 *      [[100, 150], 120],
+	 *      [[200, 300], 55],
+	 *      [[-400, 500], 60]
+	 *   ],
+	 *   type: "bar"
 	 * }
 	 *
 	 * // for 'range' types('area-line-range' or 'area-spline-range'), data should contain:
@@ -708,6 +772,16 @@ export default {
 	 *      ["data2", 200, 130, 90, 240, 130, 220],
 	 *      ["data3", 300, 200, 160, 400, 250, 250]
 	 *   ]
+	 * }
+	 *
+	 * // for 'bar' type, data can contain:
+	 * // - an array of [start, end] data following the order
+	 * data: {
+	 *   columns: [
+	 *     ["data1", -100, 50, [100, 200], [200, 300]],
+	 *     ["data2", -200, 300, [-100, 100], [-50, -30]],
+	 *   ],
+	 *   type: "bar"
 	 * }
 	 *
 	 * // for 'range' types('area-line-range' or 'area-spline-range'), data should contain:
@@ -787,7 +861,11 @@ export default {
 	 *       {name: "www.site4.com", upload: 400, download: 100, total: 500}
 	 *     ],
 	 *     keys: {
-	 *       // x: "name", // it's possible to specify 'x' when category axis
+	 *       // case 1: specify 'x' key for category axis
+	 *       x: "name", // 'name' key will be used as category x axis values
+	 *       value: ["upload", "download"]
+	 *
+	 *       // case 2: without 'x' key for non-category axis
 	 *       value: ["upload", "download"]
 	 *     }
 	 * }

@@ -5,11 +5,11 @@
  */
 import {pointer as d3Pointer} from "d3-selection";
 import {brushSelection as d3BrushSelection} from "d3-brush";
-import {d3Selection} from "../../types/types";
-import {document, window} from "./browser";
-import CLASS from "../config/classes";
+import type {d3Selection} from "../../types/types";
+import {document, window, requestAnimationFrame} from "./browser";
 
 export {
+	addCssRules,
 	asHalfPixel,
 	brushEmpty,
 	callFn,
@@ -52,7 +52,8 @@ export {
 	mergeObj,
 	notEmpty,
 	parseDate,
-	sanitise,
+	runUntil,
+	sanitize,
 	setTextValue,
 	sortValue,
 	toArray,
@@ -60,23 +61,23 @@ export {
 };
 
 const isValue = (v: any): boolean => v || v === 0;
-const isFunction = (v: any): boolean => typeof v === "function";
-const isString = (v: any): boolean => typeof v === "string";
-const isNumber = (v: any): boolean => typeof v === "number";
-const isUndefined = (v: any): boolean => typeof v === "undefined";
-const isDefined = (v: any): boolean => typeof v !== "undefined";
-const isboolean = (v: any): boolean => typeof v === "boolean";
-const ceil10 = (v: any): number => Math.ceil(v / 10) * 10;
-const asHalfPixel = (n: any): number => Math.ceil(n) + 0.5;
+const isFunction = (v: unknown): v is ((...args: any[]) => any) => typeof v === "function";
+const isString = (v: unknown): v is string => typeof v === "string";
+const isNumber = (v: unknown): v is number => typeof v === "number";
+const isUndefined = (v: unknown): v is undefined => typeof v === "undefined";
+const isDefined = (v: unknown): boolean => typeof v !== "undefined";
+const isboolean = (v: unknown): boolean => typeof v === "boolean";
+const ceil10 = (v: number): number => Math.ceil(v / 10) * 10;
+const asHalfPixel = (n: number): number => Math.ceil(n) + 0.5;
 const diffDomain = (d: number[]): number => d[1] - d[0];
-const isObjectType = (v: any): boolean => typeof v === "object";
-const isEmpty = (o: any): boolean => (
+const isObjectType = (v: unknown): v is Record<string | number, any> => typeof v === "object";
+const isEmpty = (o: unknown): boolean => (
 	isUndefined(o) || o === null ||
 	(isString(o) && o.length === 0) ||
 	(isObjectType(o) && !(o instanceof Date) && Object.keys(o).length === 0) ||
 	(isNumber(o) && isNaN(o))
 );
-const notEmpty = (o: any): boolean => !isEmpty(o);
+const notEmpty = (o: unknown): boolean => !isEmpty(o);
 
 /**
  * Check if is array
@@ -84,7 +85,7 @@ const notEmpty = (o: any): boolean => !isEmpty(o);
  * @returns {boolean}
  * @private
  */
-const isArray = (arr: any): boolean => Array.isArray(arr);
+const isArray = (arr: any): arr is any[] => Array.isArray(arr);
 
 /**
  * Check if is object
@@ -125,14 +126,15 @@ function hasValue(dict: object, value: any): boolean {
 /**
  * Call function with arguments
  * @param {Function} fn Function to be called
- * @param {*} args Arguments
+ * @param {*} thisArg "this" value for fn
+ * @param {*} args Arguments for fn
  * @returns {boolean} true: fn is function, false: fn is not function
  * @private
  */
-function callFn(fn, ...args): boolean {
+function callFn(fn: unknown, thisArg: any, ...args: any[]): boolean {
 	const isFn = isFunction(fn);
 
-	isFn && fn.call(...args);
+	isFn && fn.call(thisArg, ...args);
 	return isFn;
 }
 
@@ -166,9 +168,9 @@ function endall(transition, cb: Function): void {
  * @returns {string}
  * @private
  */
-function sanitise(str: string): string {
+function sanitize(str: string): string {
 	return isString(str) ?
-		str.replace(/</g, "&lt;").replace(/>/g, "&gt;") : str;
+		str.replace(/<(script|img)?/ig, "&lt;").replace(/(script)?>/ig, "&gt;") : str;
 }
 
 /**
@@ -254,6 +256,7 @@ function getPathBox(
 	};
 }
 
+
 /**
  * Get event's current position coordinates
  * @param {object} event Event object
@@ -263,7 +266,11 @@ function getPathBox(
  */
 function getPointer(event, element?: Element): number[] {
 	const touches = event && (event.touches || (event.sourceEvent && event.sourceEvent.touches))?.[0];
-	const pointer = d3Pointer(touches || event, element);
+	let pointer = [0, 0];
+
+	try {
+		pointer = d3Pointer(touches || event, element);
+	} catch (e) {}
 
 	return pointer.map(v => (isNaN(v) ? 0 : v));
 }
@@ -283,7 +290,7 @@ function getBrushSelection(ctx) {
 	if (event && event.type === "brush") {
 		selection = event.selection;
 	// check from brush area selection
-	} else if (main && (selection = main.select(`.${CLASS.brush}`).node())) {
+	} else if (main && (selection = main.select(".bb-brush").node())) {
 		selection = d3BrushSelection(selection);
 	}
 
@@ -312,11 +319,16 @@ function getBoundingRect(node): {
 /**
  * Retrun random number
  * @param {boolean} asStr Convert returned value as string
+ * @param {number} min Minimum value
+ * @param {number} max Maximum value
  * @returns {number|string}
  * @private
  */
-function getRandom(asStr: boolean = true): number | string {
-	const rand = Math.random();
+function getRandom(asStr = true, min = 0, max = 10000) {
+	const crpt = window.crypto || window.msCrypto;
+	const rand = crpt ?
+		min + crpt.getRandomValues(new Uint32Array(1))[0] % (max - min + 1) :
+		Math.floor(Math.random() * (max - min) + min);
 
 	return asStr ? String(rand) : rand;
 }
@@ -456,6 +468,28 @@ function camelize(str: string, separator = "-"): string {
 const toArray = (v: CSSStyleDeclaration | any): any => [].slice.call(v);
 
 /**
+ * Add CSS rules
+ * @param {object} style Style object
+ * @param {string} selector Selector string
+ * @param {Array} prop Prps arrary
+ * @returns {number} Newely added rule index
+ * @private
+ */
+function addCssRules(style, selector: string, prop: string[]): number {
+	const {rootSelctor, sheet} = style;
+	const getSelector = s => s
+		.replace(/\s?(bb-)/g, ".$1")
+		.replace(/\.+/g, ".");
+
+	const rule = `${rootSelctor} ${getSelector(selector)} {${prop.join(";")}}`;
+
+	return sheet[sheet.insertRule ? "insertRule" : "addRule"](
+		rule,
+		sheet.cssRules.length
+	);
+}
+
+/**
  * Get css rules for specified stylesheets
  * @param {Array} styleSheets The stylesheets to get the rules from
  * @returns {Array}
@@ -470,7 +504,7 @@ function getCssRules(styleSheets: any[]) {
 				rules = rules.concat(toArray(sheet.cssRules));
 			}
 		} catch (e) {
-			console.error(`Error while reading rules from ${sheet.href}: ${e.toString()}`);
+			window.console?.warn(`Error while reading rules from ${sheet.href}: ${e.toString()}`);
 		}
 	});
 
@@ -700,7 +734,9 @@ function parseDate(date: Date | string | number | any): Date {
 	} else if (isString(date)) {
 		const {config, format} = this;
 
-		parsedDate = format.dataTime(config.data_xFormat)(date);
+		// if fails to parse, try by new Date()
+		// https://github.com/naver/billboard.js/issues/1714
+		parsedDate = format.dataTime(config.data_xFormat)(date) ?? new Date(date);
 	} else if (isNumber(date) && !isNaN(date)) {
 		parsedDate = new Date(+date);
 	}
@@ -719,7 +755,7 @@ function parseDate(date: Date | string | number | any): Date {
  * @private
  */
 function isTabVisible(): boolean {
-	return !document.hidden;
+	return document?.hidden === false || document?.visibilityState === "visible";
 }
 
 /**
@@ -730,21 +766,55 @@ function isTabVisible(): boolean {
  * @private
  */
 function convertInputType(mouse: boolean, touch: boolean): "mouse" | "touch" | null {
-	let isMobile = false;
+	const {DocumentTouch, matchMedia, navigator} = window;
+	let hasTouch = false;
 
-	// https://developer.mozilla.org/en-US/docs/Web/HTTP/Browser_detection_using_the_user_agent#Mobile_Tablet_or_Desktop
-	if (/Mobi/.test(window.navigator.userAgent) && touch) {
+	if (touch) {
 		// Some Edge desktop return true: https://developer.microsoft.com/en-us/microsoft-edge/platform/issues/20417074/
-		const hasTouchPoints = window.navigator && "maxTouchPoints" in window.navigator && window.navigator.maxTouchPoints > 0;
+		if (navigator && "maxTouchPoints" in navigator) {
+			hasTouch = navigator.maxTouchPoints > 0;
 
 		// Ref: https://github.com/Modernizr/Modernizr/blob/master/feature-detects/touchevents.js
 		// On IE11 with IE9 emulation mode, ('ontouchstart' in window) is returning true
-		const hasTouch = ("ontouchmove" in window || (window.DocumentTouch && document instanceof window.DocumentTouch));
+		} else if ("ontouchmove" in window || (DocumentTouch && document instanceof DocumentTouch)) {
+			hasTouch = true;
+		} else {
+			// https://developer.mozilla.org/en-US/docs/Web/HTTP/Browser_detection_using_the_user_agent#avoiding_user_agent_detection
+			if (matchMedia?.("(pointer:coarse)").matches) {
+				hasTouch = true;
+			} else {
+				// Only as a last resort, fall back to user agent sniffing
+				const UA = navigator.userAgent;
 
-		isMobile = hasTouchPoints || hasTouch;
+				hasTouch = (
+					/\b(BlackBerry|webOS|iPhone|IEMobile)\b/i.test(UA) ||
+					/\b(Android|Windows Phone|iPad|iPod)\b/i.test(UA)
+				);
+			}
+		}
 	}
 
-	const hasMouse = mouse && !isMobile ? ("onmouseover" in window) : false;
+	// Check if agent has mouse using any-hover, touch devices (e.g iPad) with external mouse will return true as long as mouse is connected
+	// https://css-tricks.com/interaction-media-features-and-their-potential-for-incorrect-assumptions/#aa-testing-the-capabilities-of-all-inputs
+	// Demo: https://patrickhlauke.github.io/touch/pointer-hover-any-pointer-any-hover/
+	const hasMouse = mouse && ["any-hover:hover", "any-pointer:fine"]
+		.some(v => matchMedia?.(`(${v})`).matches);
 
-	return (hasMouse && "mouse") || (isMobile && "touch") || null;
+	// fallback to 'mouse' if no input type is detected.
+	return (hasMouse && "mouse") || (hasTouch && "touch") || "mouse";
 }
+
+/**
+ * Run function until given condition function return true
+ * @param {Function} fn Function to be executed when condition is true
+ * @param {Function} conditionFn Condition function to check if condition is true
+ * @private
+ */
+function runUntil(fn: Function, conditionFn: Function): void {
+	if (conditionFn() === false) {
+		requestAnimationFrame(() => runUntil(fn, conditionFn));
+	} else {
+		fn();
+	}
+}
+

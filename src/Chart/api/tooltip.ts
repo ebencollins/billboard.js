@@ -2,7 +2,7 @@
  * Copyright (c) 2017 ~ present NAVER Corp.
  * billboard.js project is licensed under the MIT license
  */
-import {isValue, isDefined} from "../../module/util";
+import {isDefined} from "../../module/util";
 
 /**
  * Define tooltip
@@ -41,6 +41,17 @@ const tooltip = {
 	 *    x: new Date("2018-01-02 00:00")
 	 *  });
 	 *
+	 *  // treemap type can be shown by using "id" only.
+	 *  chart.tooltip.show({
+	 *    data: {
+	 *        id: "data1"  // data id
+	 *    }
+	 *  });
+	 *
+	 *  // for Arc types, specify 'id' or 'index'
+	 *  chart.tooltip.show({ data: { id: "data2" }});
+	 *  chart.tooltip.show({ data: { index: 2 }});
+	 *
 	 *  // when data.xs is used
 	 *  chart.tooltip.show({
 	 *    data: {
@@ -61,7 +72,7 @@ const tooltip = {
 	 */
 	show: function(args): void {
 		const $$ = this.internal;
-		const {config, state: {inputType}} = $$;
+		const {$el, config, state: {eventReceiver, hasTreemap, inputType}} = $$;
 		let index;
 		let mouse;
 
@@ -73,17 +84,23 @@ const tooltip = {
 		// determine focus data
 		if (args.data) {
 			const {data} = args;
-			const y = $$.getYScaleById(data.id)(data.value);
+			const y = $$.getYScaleById(data.id)?.(data.value);
 
-			if ($$.isMultipleX()) {
+			if (hasTreemap && data.id) {
+				eventReceiver.rect = $el.main.select(`${$$.selectorTarget(data.id, undefined, "rect")}`);
+			} else if ($$.isMultipleX()) {
 				// if multiple xs, target point will be determined by mouse
-				mouse = [$$.scale.x(data.x), y];
+				mouse = [$$.xx(data), y];
 			} else {
 				if (!config.tooltip_grouped) {
 					mouse = [0, y];
 				}
 
-				index = isValue(data.index) ? data.index : $$.getIndexByX(data.x);
+				index = data.index ?? (
+					$$.hasArcType() && data.id ?
+						$$.getArcElementByIdOrIndex(data.id)?.datum().index :
+						$$.getIndexByX(data.x)
+				);
 			}
 		} else if (isDefined(args.x)) {
 			index = $$.getIndexByX(args.x);
@@ -124,10 +141,10 @@ const tooltip = {
 		inputType === "touch" && $$.callOverOutForTouch();
 
 		$$.hideTooltip(true);
-		$$.hideGridFocus();
+		$$.hideGridFocus?.();
 
 		$$.unexpandCircles?.();
-		$$.expandBarTypeShapes(false);
+		$$.expandBarTypeShapes?.(false);
 	}
 };
 

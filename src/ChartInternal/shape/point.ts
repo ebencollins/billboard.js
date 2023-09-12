@@ -6,9 +6,10 @@ import {
 	namespaces as d3Namespaces,
 	select as d3Select
 } from "d3-selection";
-import {d3Selection} from "../../../types/types";
-import CLASS from "../../config/classes";
+import type {d3Selection} from "../../../types/types";
+import {$CIRCLE, $COMMON, $SELECT} from "../../config/classes";
 import {document} from "../../module/browser";
+import type {IDataPoint, IDataRow} from "../data/IData";
 import {getBoundingRect, getPointer, getRandom, isFunction, isObject, isObjectType, isUndefined, isValue, toArray, notEmpty} from "../../module/util";
 
 const getTransitionName = () => getRandom();
@@ -42,7 +43,7 @@ export default {
 		let opacity = config.point_opacity;
 
 		if (isUndefined(opacity)) {
-			opacity = config.point_show && !config.point_focus_only ? null : "0";
+			opacity = config.point_show && !this.isPointFocusOnly() ? null : "0";
 
 			opacity = isValue(this.getBaseValue(d)) ?
 				(this.isBubbleType(d) || this.isScatterType(d) ?
@@ -58,10 +59,10 @@ export default {
 
 		$$.point = $$.generatePoint();
 
-		if (($$.hasType("bubble") || $$.hasType("scatter")) && main.select(`.${CLASS.chartCircles}`).empty()) {
-			main.select(`.${CLASS.chart}`)
+		if (($$.hasType("bubble") || $$.hasType("scatter")) && main.select(`.${$CIRCLE.chartCircles}`).empty()) {
+			main.select(`.${$COMMON.chart}`)
 				.append("g")
-				.attr("class", CLASS.chartCircles);
+				.attr("class", $CIRCLE.chartCircles);
 		}
 	},
 
@@ -86,11 +87,10 @@ export default {
 			targets = (data.targets)
 				.filter(d => this.isScatterType(d) || this.isBubbleType(d));
 
-			const mainCircle = $el.main.select(`.${CLASS.chartCircles}`)
+			const mainCircle = $el.main.select(`.${$CIRCLE.chartCircles}`)
 				.style("pointer-events", "none")
-				.selectAll(`.${CLASS.circles}`)
-				.data(targets)
-				.attr("class", classCircles);
+				.selectAll(`.${$CIRCLE.circles}`)
+				.data(targets);
 
 			mainCircle.exit().remove();
 			enterNode = mainCircle.enter();
@@ -98,16 +98,25 @@ export default {
 
 		// Circles for each data point on lines
 		selectionEnabled && enterNode.append("g")
-			.attr("class", d => $$.generateClass(CLASS.selectedCircles, d.id));
+			.attr("class", d => $$.generateClass($SELECT.selectedCircles, d.id));
 
 		enterNode.append("g")
 			.attr("class", classCircles)
-			.style("cursor", d => (isFunction(isSelectable) && isSelectable(d) ? "pointer" : null));
+			.call(selection => {
+				$$.setCssRule(true, `.${$CIRCLE.circles}`, ["cursor:pointer"], isSelectable)(selection);
+				$$.setCssRule(true, ` .${$CIRCLE.circle}`, ["fill", "stroke"], $$.color)(selection);
+			})
+			.style("opacity", function() {
+				const parent = d3Select(this.parentNode);
+
+				// if the parent node is .bb-chart-circles (bubble, scatter), initialize <g bb-circles> with opacity "0"
+				return parent.attr("class").indexOf($CIRCLE.chartCircles) > -1 ? "0" : null;
+			});
 
 		// Update date for selected circles
 		selectionEnabled && targets.forEach(t => {
-			$el.main.selectAll(`.${CLASS.selectedCircles}${$$.getTargetSelectorSuffix(t.id)}`)
-				.selectAll(`${CLASS.selectedCircle}`)
+			$el.main.selectAll(`.${$SELECT.selectedCircles}${$$.getTargetSelectorSuffix(t.id)}`)
+				.selectAll(`${$SELECT.selectedCircle}`)
 				.each(d => {
 					d.value = t.values[d.index].value;
 				});
@@ -117,12 +126,14 @@ export default {
 	updateCircle(isSub = false): void {
 		const $$ = this;
 		const {config, state, $el} = $$;
-		const focusOnly = config.point_focus_only;
+		const focusOnly = $$.isPointFocusOnly();
 		const $root = isSub ? $el.subchart : $el;
 
 		if (config.point_show && !state.toggling) {
-			const circles = $root.main.selectAll(`.${CLASS.circles}`)
-				.selectAll(`.${CLASS.circle}`)
+			config.point_radialGradient && $$.updateLinearGradient();
+
+			const circles = $root.main.selectAll(`.${$CIRCLE.circles}`)
+				.selectAll(`.${$CIRCLE.circle}`)
 				.data(d => (
 					($$.isLineType(d) && $$.shouldDrawPointsForLine(d)) ||
 						$$.isBubbleType(d) || $$.isRadarType(d) || $$.isScatterType(d) ?
@@ -133,28 +144,42 @@ export default {
 
 			circles.enter()
 				.filter(Boolean)
-				.append($$.point("create", this, $$.pointR.bind($$), $$.color));
+				.append($$.point("create", this, $$.pointR.bind($$), $$.updateCircleColor.bind($$)));
 
-			$root.circle = $root.main.selectAll(`.${CLASS.circles} .${CLASS.circle}`)
-				.style("stroke", $$.color)
+			$root.circle = $root.main.selectAll(`.${$CIRCLE.circles} .${$CIRCLE.circle}`)
+				.style("stroke", $$.getStylePropValue($$.color))
 				.style("opacity", $$.initialOpacityForCircle.bind($$));
 		}
+	},
+
+	/**
+	 * Update circle color
+	 * @param {object} d Data object
+	 * @returns {string} Color string
+	 * @private
+	 */
+	updateCircleColor(d: IDataRow): string {
+		const $$ = this;
+		const fn = $$.getStylePropValue($$.color);
+
+		return $$.config.point_radialGradient ?
+			$$.getGradienColortUrl(d.id) : (fn ? fn(d) : null);
 	},
 
 	redrawCircle(cx: Function, cy: Function, withTransition: boolean, flow, isSub = false) {
 		const $$ = this;
 		const {state: {rendered}, $el, $T} = $$;
 		const $root = isSub ? $el.subchart : $el;
-		const selectedCircles = $root.main.selectAll(`.${CLASS.selectedCircle}`);
+		const selectedCircles = $root.main.selectAll(`.${$SELECT.selectedCircle}`);
 
 		if (!$$.config.point_show) {
 			return [];
 		}
 
-		const fn = $$.point("update", $$, cx, cy, $$.color, withTransition, flow, selectedCircles);
+		const fn = $$.point("update", $$, cx, cy, $$.updateCircleColor.bind($$), withTransition, flow, selectedCircles);
 		const posAttr = $$.isCirclePoint() ? "c" : "";
 
-		const t: any = getRandom();
+		const t = getRandom();
 		const opacityStyleFn = $$.opacityForCircle.bind($$);
 		const mainCircles: any[] = [];
 
@@ -180,21 +205,21 @@ export default {
 	 * @param {object} d Selected data
 	 * @private
 	 */
-	showCircleFocus(d?): void {
+	showCircleFocus(d?: IDataRow[]): void {
 		const $$ = this;
-		const {config, state: {hasRadar, resizing, toggling, transiting}, $el} = $$;
+		const {state: {hasRadar, resizing, toggling, transiting}, $el} = $$;
 		let {circle} = $el;
 
-		if (transiting === false && config.point_focus_only && circle) {
+		if (transiting === false && $$.isPointFocusOnly() && circle) {
 			const cx = (hasRadar ? $$.radarCircleX : $$.circleX).bind($$);
 			const cy = (hasRadar ? $$.radarCircleY : $$.circleY).bind($$);
 			const withTransition = toggling || isUndefined(d);
-			const fn = $$.point("update", $$, cx, cy, $$.color, resizing ? false : withTransition);
+			const fn = $$.point("update", $$, cx, cy, $$.getStylePropValue($$.color), resizing ? false : withTransition);
 
 			if (d) {
 				circle = circle
 					.filter(function(t) {
-						const data = d.filter(v => v.id === t.id);
+						const data = d.filter?.(v => v.id === t.id);
 
 						return data.length ?
 							d3Select(this).datum(data[0]) : false;
@@ -225,9 +250,9 @@ export default {
 	 */
 	hideCircleFocus(): void {
 		const $$ = this;
-		const {config, $el: {circle}} = $$;
+		const {$el: {circle}} = $$;
 
-		if (config.point_focus_only && circle) {
+		if ($$.isPointFocusOnly() && circle) {
 			$$.unexpandCircles();
 			circle.style("visibility", "hidden");
 		}
@@ -256,7 +281,7 @@ export default {
 
 		reset && $$.unexpandCircles();
 
-		const circles = $$.getShapeByIndex("circle", i, id).classed(CLASS.EXPANDED, true);
+		const circles = $$.getShapeByIndex("circle", i, id).classed($COMMON.EXPANDED, true);
 		const scale = r(circles) / $$.config.point_r;
 		const ratio = 1 - scale;
 
@@ -286,14 +311,17 @@ export default {
 
 		const circles = $$.getShapeByIndex("circle", i)
 			.filter(function() {
-				return d3Select(this).classed(CLASS.EXPANDED);
+				return d3Select(this).classed($COMMON.EXPANDED);
 			})
-			.classed(CLASS.EXPANDED, false);
+			.classed($COMMON.EXPANDED, false);
 
 		circles.attr("r", r);
 
-		!$$.isCirclePoint() &&
-			circles.attr("transform", `scale(${r(circles) / $$.config.point_r})`);
+		if (!$$.isCirclePoint()) {
+			const scale = r(circles) / $$.config.point_r;
+
+			circles.attr("transform", scale !== 1 ? `scale(${scale})` : null);
+		}
 	},
 
 	pointR(d): number {
@@ -307,6 +335,8 @@ export default {
 		} else if (isFunction(pointR)) {
 			r = pointR.bind($$.api)(d);
 		}
+
+		d.r = r;
 
 		return r;
 	},
@@ -328,7 +358,19 @@ export default {
 			selectR(d) : (selectR || $$.pointR(d) * 4);
 	},
 
-	isWithinCircle(node, r?: number): boolean {
+	/**
+	 * Check if point.focus.only option can be applied.
+	 * @returns {boolean}
+	 * @private
+	 */
+	isPointFocusOnly(): boolean {
+		const $$ = this;
+
+		return $$.config.point_focus_only &&
+			!$$.hasType("bubble") && !$$.hasType("scatter") && !$$.hasArcType(null, ["radar"]);
+	},
+
+	isWithinCircle(node: SVGElement, r?: number): boolean {
 		const mouse = getPointer(this.state.event, node);
 		const element = d3Select(node);
 		const prefix = this.isCirclePoint(node) ? "c" : "";
@@ -346,6 +388,24 @@ export default {
 		return Math.sqrt(
 			Math.pow(cx - mouse[0], 2) + Math.pow(cy - mouse[1], 2)
 		) < (r || this.config.point_sensitivity);
+	},
+
+	/**
+	 * Get data point sensitivity radius
+	 * @param {object} d Data point object
+	 * @returns {number} return the sensitivity value
+	 */
+	getPointSensitivity(d: IDataPoint) {
+		const $$ = this;
+		let sensitivity = $$.config.point_sensitivity;
+
+		if (isFunction(sensitivity)) {
+			sensitivity = sensitivity.call($$.api, d);
+		} else if (sensitivity === "radius") {
+			sensitivity = d.r;
+		}
+
+		return sensitivity;
 	},
 
 	insertPointInfoDefs(point, id: string): void {
@@ -398,8 +458,8 @@ export default {
 				circle.each(function(d) {
 					let className = $$.getClass("circle", true)(d);
 
-					if (this.getAttribute("class").indexOf(CLASS.EXPANDED) > -1) {
-						className += ` ${CLASS.EXPANDED}`;
+					if (this.getAttribute("class").indexOf($COMMON.EXPANDED) > -1) {
+						className += ` ${$COMMON.EXPANDED}`;
 					}
 
 					this.setAttribute("class", className);
@@ -480,7 +540,7 @@ export default {
 	},
 
 	custom: {
-		create(element, id, sizeFn, fillStyleFn) {
+		create(element, id, fillStyleFn) {
 			return element.append("use")
 				.attr("xlink:href", `#${id}`)
 				.attr("class", this.updatePointClass.bind(this))

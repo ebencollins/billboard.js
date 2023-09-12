@@ -46,6 +46,7 @@ export default {
 	 * - **log** type:
 	 *   - the x values specified by [`data.x`](#.data%25E2%2580%25A4x)(or by any equivalent option), must be exclusively-positive.
 	 *   - x axis min value should be >= 0.
+	 *   - for 'category' type, `data.xs` option isn't supported.
 	 *
 	 * @name axis․x․type
 	 * @memberof Options
@@ -143,15 +144,16 @@ export default {
 	axis_x_tick_format: <Function|string|undefined> undefined,
 
 	/**
-	 * Setting for culling ticks.<br><br>
-	 * If true is set, the ticks will be culled, then only limitted tick text will be shown. This option does not hide the tick lines. If false is set, all of ticks will be shown.<br><br>
-	 * We can change the number of ticks to be shown by axis.x.tick.culling.max.
+	 * Setting for culling ticks.
+	 * - `true`: the ticks will be culled, then only limited tick text will be shown.<br>
+	 *   This option does not hide the tick lines by default, if want to hide tick lines, set `axis.x.tick.culling.lines=false`.
+	 * - `false`: all of ticks will be shown.<br><br>
+	 * The number of ticks to be shown can be chaned by `axis.x.tick.culling.max`.
 	 * @name axis․x․tick․culling
 	 * @memberof Options
 	 * @type {boolean}
 	 * @default
-	 * - true for indexed axis and timeseries axis
-	 * - false for category axis
+	 * `true` for indexed axis and timeseries axis, `false` for category axis
 	 * @example
 	 * axis: {
 	 *   x: {
@@ -181,6 +183,25 @@ export default {
 	 * }
 	 */
 	axis_x_tick_culling_max: 10,
+
+	/**
+	 * Control visibility of tick lines within culling option, along with tick text.
+	 * @name axis․x․tick․culling․lines
+	 * @memberof Options
+	 * @type {boolean}
+	 * @default true
+	 * @example
+	 * axis: {
+	 *   x: {
+	 *     tick: {
+	 *       culling: {
+	 *           lines: false,
+	 *       }
+	 *     }
+	 *   }
+	 * }
+	 */
+	axis_x_tick_culling_lines: true,
 
 	/**
 	 * The number of x axis ticks to show.<br><br>
@@ -262,8 +283,8 @@ export default {
 
 	/**
 	 * Fit x axis ticks.
-	 * - **true**: ticks will be positioned nicely to have same intervals.
-	 * - **false**: ticks will be positioned according to x value of the data points.
+	 * - **true**: ticks will be shown according to x value of the data points.
+	 * - **false**: ticks will be shown as to have same intervals.
 	 * @name axis․x․tick․fit
 	 * @memberof Options
 	 * @type {boolean}
@@ -489,6 +510,23 @@ export default {
 	 * }
 	 */
 	axis_x_min: <number|undefined> undefined,
+
+	/**
+	 * Change the direction of x axis.<br><br>
+	 * If true set, the direction will be `right -> left`.
+	 * @name axis․x․inverted
+	 * @memberof Options
+	 * @type {boolean}
+	 * @default false
+	 * @see [Demo](https://naver.github.io/billboard.js/demo/#Axis.InvertedAxis)
+	 * @example
+	 * axis: {
+	 *   x: {
+	 *     inverted: true
+	 *   }
+	 * }
+	 */
+	axis_x_inverted: false,
 
 	/**
 	 * Set padding for x axis.<br><br>

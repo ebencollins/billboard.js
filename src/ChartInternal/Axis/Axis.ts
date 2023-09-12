@@ -10,7 +10,7 @@ import {
 } from "d3-axis";
 import AxisRenderer from "./AxisRenderer";
 import {getScale} from "../internals/scale";
-import CLASS from "../../config/classes";
+import {$AXIS} from "../../config/classes";
 import {capitalize, isArray, isFunction, isString, isValue, isEmpty, isNumber, isObjectType, mergeObj, notEmpty, parseDate, sortValue} from "../../module/util";
 
 export default {
@@ -45,7 +45,7 @@ class Axis {
 	}
 
 	private getAxisClassName(id) {
-		return `${CLASS.axis} ${CLASS[`axis${capitalize(id)}`]}`;
+		return `${$AXIS.axis} ${$AXIS[`axis${capitalize(id)}`]}`;
 	}
 
 	private isHorizontal($$, forHorizontal) {
@@ -100,7 +100,7 @@ class Axis {
 
 		target.forEach(v => {
 			const classAxis = this.getAxisClassName(v);
-			const classLabel = CLASS[`axis${v.toUpperCase()}Label`];
+			const classLabel = $AXIS[`axis${v.toUpperCase()}Label`];
 
 			axis[v] = main.append("g")
 				.attr("class", classAxis)
@@ -197,7 +197,7 @@ class Axis {
 	 */
 	updateAxes() {
 		const $$ = this.owner;
-		const {config, $el: {main}} = $$;
+		const {config, $el: {main}, $T} = $$;
 
 		Object.keys(this.axesList).forEach(id => {
 			const axesConfig = config[`axis_${id}_axes`];
@@ -224,7 +224,7 @@ class Axis {
 				} else {
 					axesConfig[i].domain && scale.domain(axesConfig[i].domain);
 
-					$$.$T(g).call(v.scale(scale));
+					$T(g).call(v.scale(scale));
 				}
 
 				g.attr("transform", $$.getTranslate(id, i + 1));
@@ -292,6 +292,7 @@ class Axis {
 			owner: $$
 		}, isX && {
 			isCategory,
+			isInverted: config.axis_x_inverted,
 			tickMultiline: config.axis_x_tick_multiline,
 			tickWidth: config.axis_x_tick_width,
 			tickTitle: isCategory && config.axis_x_tick_tooltip && $$.api.categories(),
@@ -580,7 +581,7 @@ class Axis {
 		const currentTickMax = current.maxTickWidths[id];
 		let maxWidth = 0;
 
-		if (withoutRecompute || !config[`axis_${id}_show`] || $$.filterTargetsToShow().length === 0) {
+		if (withoutRecompute || !config[`axis_${id}_show`] || (currentTickMax.size > 0 && $$.filterTargetsToShow().length === 0)) {
 			return currentTickMax.size;
 		}
 
@@ -739,9 +740,9 @@ class Axis {
 		const {$el: {main}, $T} = $$;
 
 		const labels = {
-			x: main.select(`.${CLASS.axisX} .${CLASS.axisXLabel}`),
-			y: main.select(`.${CLASS.axisY} .${CLASS.axisYLabel}`),
-			y2: main.select(`.${CLASS.axisY2} .${CLASS.axisY2Label}`)
+			x: main.select(`.${$AXIS.axisX} .${$AXIS.axisXLabel}`),
+			y: main.select(`.${$AXIS.axisY} .${$AXIS.axisYLabel}`),
+			y2: main.select(`.${$AXIS.axisY2} .${$AXIS.axisY2Label}`)
 		};
 
 		Object.keys(labels).filter(id => !labels[id].empty())
@@ -891,11 +892,12 @@ class Axis {
 		}
 
 		["y", "y2"].forEach(key => {
+			const prefix = `axis_${key}_`;
 			const axisScale = scale[key];
 
 			if (axisScale) {
-				const tickValues = config[`axis_${key}_tick_values`];
-				const tickCount = config[`axis_${key}_tick_count`];
+				const tickValues = config[`${prefix}tick_values`];
+				const tickCount = config[`${prefix}tick_count`];
 
 				axisScale.domain($$.getYDomain(targetsToShow, key, xDomainForZoom));
 
@@ -940,18 +942,22 @@ class Axis {
 		const $$ = this.owner;
 		const {config, state: {clip, current}, $el} = $$;
 
+
 		["subX", "x", "y", "y2"].forEach(type => {
 			const axis = $el.axis[type];
 
 			// subchart x axis should be aligned with x axis culling
 			const id = type === "subX" ? "x" : type;
-			const toCull = config[`axis_${id}_tick_culling`];
+
+			const cullingOptionPrefix = `axis_${id}_tick_culling`;
+			const toCull = config[cullingOptionPrefix];
 
 			if (axis && toCull) {
-				const tickText = axis.selectAll(".tick text");
-				const tickValues = sortValue(tickText.data());
+				const tickNodes = axis.selectAll(".tick");
+				const tickValues = sortValue(tickNodes.data());
 				const tickSize = tickValues.length;
-				const cullingMax = config[`axis_${id}_tick_culling_max`];
+				const cullingMax = config[`${cullingOptionPrefix}_max`];
+				const lines = config[`${cullingOptionPrefix}_lines`];
 				let intervalForCulling;
 
 				if (tickSize) {
@@ -962,18 +968,23 @@ class Axis {
 						}
 					}
 
-					tickText.each(function(d) {
-						this.style.display = tickValues.indexOf(d) % intervalForCulling ? "none" : null;
-					});
+					tickNodes
+						.each(function(d) {
+							const node = (lines ? this.querySelector("text") : this);
+
+							if (node) {
+								node.style.display = tickValues.indexOf(d) % intervalForCulling ? "none" : null;
+							}
+						});
 				} else {
-					tickText.style("display", null);
+					tickNodes.style("display", null);
 				}
 
 				// set/unset x_axis_tick_clippath
 				if (type === "x") {
 					const clipPath = current.maxTickWidths.x.clipPath ? clip.pathXAxisTickTexts : null;
 
-					$el.svg.selectAll(`.${CLASS.axisX} .tick text`)
+					$el.svg.selectAll(`.${$AXIS.axisX} .tick text`)
 						.attr("clip-path", clipPath);
 				}
 			}

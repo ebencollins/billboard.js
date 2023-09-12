@@ -10,7 +10,7 @@ import {
 	curveStepAfter as d3CurveStepAfter,
 	curveStepBefore as d3CurveStepBefore
 } from "d3-shape";
-import CLASS from "../../src/config/classes";
+import {$AXIS, $COMMON, $LINE, $SELECT} from "../../src/config/classes";
 import util from "../assets/util";
 
 describe("SHAPE LINE", () => {
@@ -46,14 +46,14 @@ describe("SHAPE LINE", () => {
 		});
 
 		it("Should render the lines correctly", () => {
-			const target = chart.$.main.select(`.${CLASS.chartLine}.${CLASS.target}-data1`);
-			const commands = parseSvgPath(target.select(`.${CLASS.line}-data1`).attr("d"));
+			const target = chart.$.main.select(`.${$LINE.chartLine}.${$COMMON.target}-data1`);
+			const commands = parseSvgPath(target.select(`.${$LINE.line}-data1`).attr("d"));
 
 			expect(commands.length).to.be.equal(6);
 		});
 
 		it("should not have shape-rendering when it's line chart", () => {
-			chart.$.main.selectAll(`.${CLASS.line}`).each(function() {
+			chart.$.main.selectAll(`.${$LINE.line}`).each(function() {
 				const style = d3Select(this).style("shape-rendering");
 
 				expect(style).to.be.equal("auto");
@@ -65,11 +65,11 @@ describe("SHAPE LINE", () => {
 			args.line.step.type = "step-after";
 		});
 
-		it("should have shape-rendering = crispedges when it's step chart", () => {
-			chart.$.main.selectAll(`.${CLASS.line}`).each(function() {
+		it("should 'shape-rendering' shouldn't be set 'crispedges' when it's step chart", () => {
+			chart.$.main.selectAll(`.${$LINE.line}`).each(function() {
 				const style = d3Select(this).style("shape-rendering").toLowerCase();
 
-				expect(style).to.be.equal("crispedges");
+				expect(style).to.be.equal("auto");
 			});
 		});
 
@@ -111,8 +111,8 @@ describe("SHAPE LINE", () => {
 
 		it("should not draw a line segment for null data", done => {
 			setTimeout(() => {
-				const target = chart.$.main.select(`.${CLASS.chartLine}.${CLASS.target}-data1`);
-				const commands = parseSvgPath(target.select(`.${CLASS.line}-data1`).attr("d"));
+				const target = chart.$.main.select(`.${$LINE.chartLine}.${$COMMON.target}-data1`);
+				const commands: any = parseSvgPath(target.select(`.${$LINE.line}-data1`).attr("d"));
 				let segments = 0;
 
 				for (let i = 0; i < commands.length; i++) {
@@ -181,7 +181,7 @@ describe("SHAPE LINE", () => {
 		});
 
 		it("<g> selected node shouldn't be generated when point.show=false", () => {
-			const selectedCircle = chart.$.main.selectAll(`.${CLASS.selectedCircles}`);
+			const selectedCircle = chart.$.main.selectAll(`.${$SELECT.selectedCircles}`);
 
 			expect(selectedCircle.empty()).to.be.true;
 		});
@@ -198,7 +198,7 @@ describe("SHAPE LINE", () => {
 		});
 
 		it("<g> selected node shouldn't be generated when data.selection.enabled=false", () => {
-			const selectedCircle = chart.$.main.selectAll(`.${CLASS.selectedCircles}`);
+			const selectedCircle = chart.$.main.selectAll(`.${$SELECT.selectedCircles}`);
 
 			expect(selectedCircle.empty()).to.be.true;
 		});
@@ -257,9 +257,37 @@ describe("SHAPE LINE", () => {
 
 			expect(to).to.be.equal(d3CurveStepBefore);
 		});
+
+		it("set options", () => {
+			args = {
+				data: {
+					columns: [
+						["data1", 30, 200, 100]
+					],
+					type: "step"
+				},
+				point: {
+					pattern: [
+						"<polygon points='2.5 0 0 2.5 2.5 5 5 2.5 2.5 0'></polygon>"
+					]
+				},
+				tooltip: {
+					grouped: false
+				}
+			};
+		});
+
+		it("should correctly show tooltip with tooltip.grouped=false.", () => {
+			// when
+			chart.tooltip.show({
+				data: {id:"data1", value: 200, x: 1}
+			});
+
+			expect(+chart.$.tooltip.select(".value").text()).to.be.equal(chart.data.values("data1")[1])
+		});
 	});
 
-	describe("step type: catetegory axis & line.ConnectNull", () => {
+	describe("step type: category axis & line.ConnectNull", () => {
 		before(() => {
 			args = {
 				data: {
@@ -284,8 +312,8 @@ describe("SHAPE LINE", () => {
 
 		it("should be generated correctly", () => {
 			const path = {
-				column1: "M-42,202.43229166666669L0,202.43229166666669L0,202.43229166666669L126,202.43229166666669L126,202.43229166666669L252,202.43229166666669L252,191.36458333333331L420,191.36458333333331L420,351.8463541666667L588,351.8463541666667L588,351.8463541666667L630,351.8463541666667",
-				column2: "M-42,36.41666666666668L0,36.41666666666668L0,36.41666666666668L126,36.41666666666668L126,147.09375L252,147.09375L252,136.02604166666669L378,136.02604166666669L378,124.95833333333331L504,124.95833333333331L504,390.5833333333333L588,390.5833333333333L588,390.5833333333333L630,390.5833333333333"
+				column1: "M-41,202.432L1,202.432L1,202.432L127.5,202.432L127.5,202.432L254,202.432L254,191.365L422,191.365L422,351.846L590,351.846L590,351.846L632,351.846",
+				column2: "M-41,36.417L1,36.417L1,36.417L127.5,36.417L127.5,147.094L254,147.094L254,136.026L380,136.026L380,124.958L506,124.958L506,390.583L590,390.583L590,390.583L632,390.583"
 			}
 
 			chart.$.line.lines.each(function(d) {
@@ -337,7 +365,7 @@ describe("SHAPE LINE", () => {
 			args.line.zerobased = false;
 			chart = util.generate(args);
 
-			const tickNodes = chart.$.svg.select(`.${CLASS.axisY}`).selectAll("g.tick");
+			const tickNodes = chart.$.svg.select(`.${$AXIS.axisY}`).selectAll("g.tick");
 			const tickElements = tickNodes.nodes();
 
 			const translateValues = [
@@ -361,7 +389,7 @@ describe("SHAPE LINE", () => {
 			args.line.zerobased = true;
 			chart = util.generate(args);
 
-			const tickNodes = chart.$.svg.select(`.${CLASS.axisY}`).selectAll("g.tick");
+			const tickNodes = chart.$.svg.select(`.${$AXIS.axisY}`).selectAll("g.tick");
 			const tickElements = tickNodes.nodes();
 
 			const translateValues = [

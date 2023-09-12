@@ -10,7 +10,7 @@ import {
 	scaleSymlog as d3ScaleSymlog
 } from "d3-scale";
 import {isString, isValue, parseDate} from "../../module/util";
-import {IDataRow, IGridData} from "../data/IData";
+import type {IDataRow, IGridData} from "../data/IData";
 
 
 /**
@@ -50,7 +50,7 @@ export default {
 		const $$ = this;
 		const scale = $$.scale.zoom || getScale($$.axis.getAxisType("x"), min, max);
 
-		return $$.getCustomizedScale(
+		return $$.getCustomizedXScale(
 			domain ? scale.domain(domain) : scale,
 			offset
 		);
@@ -82,22 +82,23 @@ export default {
 	 * @private
 	 */
 	getYScaleById(id: string, isSub = false): Function {
-		const isY2 = this.axis.getId(id) === "y2";
+		const isY2 = this.axis?.getId(id) === "y2";
 		const key = isSub ? (isY2 ? "subY2" : "subY") : (isY2 ? "y2" : "y");
 
 		return this.scale[key];
 	},
 
 	/**
-	 * Get customized scale
+	 * Get customized x axis scale
 	 * @param {d3.scaleLinear|d3.scaleTime} scaleValue Scale function
 	 * @param {Function} offsetValue Offset getter to be sum
 	 * @returns {Function} Scale function
 	 * @private
 	 */
-	getCustomizedScale(scaleValue: Function | any, offsetValue): Function {
+	getCustomizedXScale(scaleValue: Function | any, offsetValue): Function {
 		const $$ = this;
 		const offset = offsetValue || (() => $$.axis.x.tickOffset());
+		const isInverted = $$.config.axis_x_inverted;
 		const scale = function(d, raw) {
 			const v = scaleValue(d) + offset();
 
@@ -120,7 +121,9 @@ export default {
 				if (!arguments.length) {
 					domain = this.orgDomain();
 
-					return [domain[0], domain[1] + 1];
+					return isInverted ?
+						[domain[0] + 1, domain[1]] :
+						[domain[0], domain[1] + 1];
 				}
 
 				scaleValue.domain(domain);
@@ -141,15 +144,16 @@ export default {
 	updateScales(isInit: boolean, updateXDomain = true): void {
 		const $$ = this;
 		const {axis, config, format, org, scale,
-			state: {width, height, width2, height2, hasAxis}
+			state: {current, width, height, width2, height2, hasAxis, hasTreemap}
 		} = $$;
 
 		if (hasAxis) {
 			const isRotated = config.axis_rotated;
+			const resettedPadding = $$.getResettedPadding(1);
 
 			// update edges
 			const min = {
-				x: isRotated ? 1 : 0,
+				x: isRotated ? resettedPadding : 0,
 				y: isRotated ? 0 : height,
 				subX: isRotated ? 1 : 0,
 				subY: isRotated ? 0 : height2
@@ -157,7 +161,7 @@ export default {
 
 			const max = {
 				x: isRotated ? height : width,
-				y: isRotated ? width : 1,
+				y: isRotated ? width : resettedPadding,
 				subX: isRotated ? height : width,
 				subY: isRotated ? width2 : 1
 			};
@@ -168,7 +172,9 @@ export default {
 			const xSubDomain = updateXDomain && org.xDomain;
 
 			scale.x = $$.getXScale(min.x, max.x, xDomain, () => axis.x.tickOffset());
-			scale.subX = $$.getXScale(min.x, max.x, xSubDomain, d => (d % 1 ? 0 : axis.subX.tickOffset()));
+			scale.subX = $$.getXScale(min.x, max.x, xSubDomain, d => (
+				d % 1 ? 0 : (axis.subX ?? axis.x).tickOffset())
+			);
 
 			format.xAxisTick = axis.getXAxisTickFormat();
 			format.subXAxisTick = axis.getXAxisTickFormat(true);
@@ -194,6 +200,11 @@ export default {
 
 				axis.setAxis("y2", scale.y2, config.axis_y2_tick_outer, isInit);
 			}
+		} else if (hasTreemap) {
+			const padding = $$.getCurrentPadding();
+
+			scale.x = d3ScaleLinear().rangeRound([padding.left, current.width - padding.right]);
+			scale.y = d3ScaleLinear().rangeRound([padding.top, current.height - padding.bottom]);
 		} else {
 			// update for arc
 			$$.updateArc?.();

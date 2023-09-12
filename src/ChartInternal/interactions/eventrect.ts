@@ -2,7 +2,7 @@
  * Copyright (c) 2017 ~ present NAVER Corp.
  * billboard.js project is licensed under the MIT license
  */
-import CLASS from "../../config/classes";
+import {$COMMON, $EVENT, $SHAPE} from "../../config/classes";
 import {isboolean, getPointer, isFunction} from "../../module/util";
 
 export default {
@@ -14,9 +14,9 @@ export default {
 	initEventRect(): void {
 		const $$ = this;
 
-		$$.$el.main.select(`.${CLASS.chart}`)
+		$$.$el.main.select(`.${$COMMON.chart}`)
 			.append("g")
-			.attr("class", CLASS.eventRects)
+			.attr("class", $EVENT.eventRects)
 			.style("fill-opacity", "0");
 	},
 
@@ -28,19 +28,22 @@ export default {
 		const $$ = this;
 		const {config, state, $el} = $$;
 		const isMultipleX = $$.isMultipleX();
+		const isInverted = config.axis_x_inverted;
 
 		if ($el.eventRect) {
 			$$.updateEventRect($el.eventRect, true);
-		} else {
-			const eventRects = $$.$el.main.select(`.${CLASS.eventRects}`)
+
+		// do not initialize eventRect when data is empty
+		} else if ($$.data.targets.length) {
+			const eventRects = $$.$el.main.select(`.${$EVENT.eventRects}`)
 				.style("cursor", config.zoom_enabled && config.zoom_type !== "drag" ? (
 					config.axis_rotated ? "ns-resize" : "ew-resize"
 				) : null)
-				.classed(CLASS.eventRectsMultiple, isMultipleX)
-				.classed(CLASS.eventRectsSingle, !isMultipleX);
+				.classed($EVENT.eventRectsMultiple, isMultipleX)
+				.classed($EVENT.eventRectsSingle, !isMultipleX);
 
 			// append event <rect>
-			const eventRectUpdate = eventRects.selectAll(`.${CLASS.eventRect}`)
+			const eventRectUpdate = eventRects.selectAll(`.${$EVENT.eventRect}`)
 				.data([0])
 				.enter()
 				.append("rect");
@@ -58,13 +61,20 @@ export default {
 			$el.eventRect = eventRectUpdate;
 
 			if ($$.state.inputType === "touch" && !$el.svg.on("touchstart.eventRect") && !$$.hasArcType()) {
-				$$.bindTouchOnEventRect(isMultipleX);
+				$$.bindTouchOnEventRect();
 			}
+
+			// when initilazed with empty data and data loaded later, need to update eventRect
+			state.rendered && $$.updateEventRect($el.eventRect, true);
 		}
 
 		if (!isMultipleX) {
 			// Set data and update eventReceiver.data
 			const xAxisTickValues = $$.getMaxDataCountTarget();
+
+			if (!config.data_xSort || isInverted) {
+				xAxisTickValues.sort((a, b) => (isInverted ? b.x - a.x : a.x - b.x));
+			}
 
 			// update data's index value to be alinged with the x Axis
 			$$.updateDataIndexByX(xAxisTickValues);
@@ -77,12 +87,12 @@ export default {
 		$$.updateEventRectData();
 	},
 
-	bindTouchOnEventRect(isMultipleX: boolean): void {
+	bindTouchOnEventRect(): void {
 		const $$ = this;
 		const {config, state, $el: {eventRect, svg}} = $$;
 
 		const selectRect = context => {
-			if (isMultipleX) {
+			if ($$.isMultipleX()) {
 				$$.selectRectForMultipleXs(context);
 			} else {
 				const index = $$.getDataIndexFromEvent(state.event);
@@ -91,7 +101,7 @@ export default {
 
 				index === -1 ?
 					$$.unselectRect() :
-					$$.selectRectForSingle(context, eventRect, index);
+					$$.selectRectForSingle(context, index);
 			}
 		};
 
@@ -139,7 +149,7 @@ export default {
 			.on("touchstart.eventRect touchmove.eventRect", event => {
 				state.event = event;
 
-				if (!eventRect.empty() && eventRect.classed(CLASS.eventRect)) {
+				if (!eventRect.empty() && eventRect.classed($EVENT.eventRect)) {
 					// if touch points are > 1, means doing zooming interaction. In this case do not execute tooltip codes.
 					if (state.dragging || state.flowing || $$.hasArcType() || event.touches.length > 1) {
 						return;
@@ -154,7 +164,7 @@ export default {
 			.on("touchend.eventRect", event => {
 				state.event = event;
 
-				if (!eventRect.empty() && eventRect.classed(CLASS.eventRect)) {
+				if (!eventRect.empty() && eventRect.classed($EVENT.eventRect)) {
 					if ($$.hasArcType() || !$$.toggleShape || state.cancelClick) {
 						state.cancelClick && (state.cancelClick = false);
 					}
@@ -163,7 +173,6 @@ export default {
 
 		svg.on("touchstart", event => {
 			state.event = event;
-
 			const {target} = event;
 
 			if (target && target !== eventRect.node()) {
@@ -198,8 +207,8 @@ export default {
 				.attr("height", height);
 
 			// only for init
-			if (!rendered) {
-				rectElement.attr("class", CLASS.eventRect);
+			if (!rendered || force) {
+				rectElement.classed($EVENT.eventRect, true);
 			}
 		}
 
@@ -242,33 +251,42 @@ export default {
 				rectW = (d): number => {
 					const x = getPrevNextX(d);
 					const xDomain = xScale.domain();
+					let val: number;
 
 					// if there this is a single data point make the eventRect full width (or height)
 					if (x.prev === null && x.next === null) {
-						return isRotated ? state.height : state.width;
+						val = isRotated ? state.height : state.width;
+					} else if (x.prev === null) {
+						val = (xScale(x.next) + xScale(d.x)) / 2;
+					} else if (x.next === null) {
+						val = xScale(xDomain[1]) - (
+							(xScale(x.prev) + xScale(d.x)) / 2
+						);
+					} else {
+						Object.keys(x).forEach((key, i) => {
+							x[key] = x[key] ?? xDomain[i];
+						});
+
+						val = Math.max(0, (xScale(x.next) - xScale(x.prev)) / 2);
 					}
 
-					Object.keys(x).forEach((key, i) => {
-						x[key] = x[key] ?? xDomain[i];
-					});
-
-					return Math.max(0, (xScale(x.next) - xScale(x.prev)) / 2);
+					return val;
 				};
 
 				rectX = (d): number => {
 					const x = getPrevNextX(d);
-					const thisX = d.x;
+					let val: number;
 
 					// if there this is a single data point position the eventRect at 0
 					if (x.prev === null && x.next === null) {
-						return 0;
+						val = 0;
+					} else if (x.prev === null) {
+						val = xScale(xScale.domain()[0]);
+					} else {
+						val = (xScale(d.x) + xScale(x.prev)) / 2;
 					}
 
-					if (x.prev === null) {
-						x.prev = xScale.domain()[0];
-					}
-
-					return (xScale(thisX) + xScale(x.prev)) / 2;
+					return val;
 				};
 			}
 
@@ -294,7 +312,74 @@ export default {
 		});
 	},
 
-	selectRectForMultipleXs(context): void {
+	/**
+	 * Seletct rect for single x value
+	 * @param {d3Selection} context Event rect element
+	 * @param {number} index x Axis index
+	 * @private
+	 */
+	selectRectForSingle(context: SVGRectElement, index: number): void {
+		const $$ = this;
+		const {config, $el: {main, circle}} = $$;
+		const isSelectionEnabled = config.data_selection_enabled;
+		const isSelectionGrouped = config.data_selection_grouped;
+		const isSelectable = config.data_selection_isselectable;
+		const isTooltipGrouped = config.tooltip_grouped;
+		const selectedData = $$.getAllValuesOnIndex(index);
+
+		if (isTooltipGrouped) {
+			$$.showTooltip(selectedData, context);
+			$$.showGridFocus?.(selectedData);
+
+			if (!isSelectionEnabled || isSelectionGrouped) {
+				return;
+			}
+		}
+
+		// remove possible previous focused state
+		!circle && main.selectAll(`.${$COMMON.EXPANDED}:not(.${$SHAPE.shape}-${index})`).classed($COMMON.EXPANDED, false);
+
+		const shapeAtIndex = main.selectAll(`.${$SHAPE.shape}-${index}`)
+			.classed($COMMON.EXPANDED, true)
+			.style("cursor", isSelectable ? "pointer" : null)
+			.filter(function(d) {
+				return $$.isWithinShape(this, d);
+			});
+
+		if (shapeAtIndex.empty() && !isTooltipGrouped) {
+			$$.hideGridFocus?.();
+			$$.hideTooltip();
+
+			!isSelectionGrouped && $$.setExpand(index);
+		}
+
+		shapeAtIndex
+			.call(selected => {
+				const d = selected.data();
+
+				if (isSelectionEnabled &&
+					(isSelectionGrouped || isSelectable?.bind($$.api)(d))
+				) {
+					context.style.cursor = "pointer";
+				}
+
+				if (!isTooltipGrouped) {
+					$$.showTooltip(d, context);
+					$$.showGridFocus?.(d);
+					$$.unexpandCircles?.();
+
+					selected.each(d => $$.setExpand(index, d.id));
+				}
+			});
+	},
+
+	/**
+	 * Select rect for multiple x values
+	 * @param {d3Selection} context Event rect element
+	 * @param {boolean} [triggerEvent=true] Whether trigger event or not
+	 * @private
+	 */
+	selectRectForMultipleXs(context: SVGRectElement, triggerEvent = true): void {
 		const $$ = this;
 		const {config, state} = $$;
 		const targetsToShow = $$.filterTargetsToShow($$.data.targets);
@@ -307,7 +392,7 @@ export default {
 		const mouse = getPointer(state.event, context);
 		const closest = $$.findClosestFromTargets(targetsToShow, mouse);
 
-		if (state.mouseover && (!closest || closest.id !== state.mouseover.id)) {
+		if (triggerEvent && state.mouseover && (!closest || closest.id !== state.mouseover.id)) {
 			config.data_onout.call($$.api, state.mouseover);
 			state.mouseover = undefined;
 		}
@@ -332,11 +417,13 @@ export default {
 		// Show xgrid focus line
 		$$.showGridFocus(selectedData);
 
-		// Show cursor as pointer if point is close to mouse position
-		if ($$.isBarType(closest.id) || $$.dist(closest, mouse) < config.point_sensitivity) {
-			$$.$el.svg.select(`.${CLASS.eventRect}`).style("cursor", "pointer");
+		const dist = $$.dist(closest, mouse);
 
-			if (!state.mouseover) {
+		// Show cursor as pointer if point is close to mouse position
+		if ($$.isBarType(closest.id) || dist < $$.getPointSensitivity(closest)) {
+			$$.$el.svg.select(`.${$EVENT.eventRect}`).style("cursor", "pointer");
+
+			if (triggerEvent && !state.mouseover) {
 				config.data_onover.call($$.api, closest);
 				state.mouseover = closest;
 			}
@@ -349,9 +436,9 @@ export default {
 	 */
 	unselectRect(): void {
 		const $$ = this;
-		const {config, $el: {circle, tooltip}} = $$;
+		const {$el: {circle, tooltip}} = $$;
 
-		$$.$el.svg.select(`.${CLASS.eventRect}`).style("cursor", null);
+		$$.$el.svg.select(`.${$EVENT.eventRect}`).style("cursor", null);
 		$$.hideGridFocus();
 
 		if (tooltip) {
@@ -359,15 +446,15 @@ export default {
 			$$._handleLinkedCharts(false);
 		}
 
-		circle && !config.point_focus_only && $$.unexpandCircles();
+		circle && !$$.isPointFocusOnly() && $$.unexpandCircles();
 		$$.expandBarTypeShapes(false);
 	},
 
 	/**
 	 * Create eventRect for each data on the x-axis.
 	 * Register touch and drag events.
-	 * @param {object} eventRectEnter d3.select(CLASS.eventRects) object.
-	 * @returns {object} d3.select(CLASS.eventRects) object.
+	 * @param {object} eventRectEnter d3.select($EVENT.eventRects) object.
+	 * @returns {object} d3.select($EVENT.eventRects) object.
 	 * @private
 	 */
 	generateEventRectsForSingleX(eventRectEnter) {
@@ -426,10 +513,11 @@ export default {
 						}
 					}
 
+					const eventOnSameIdx = config.tooltip_grouped && index === eventReceiver.currentIdx;
+
 					// do nothing while dragging/flowing
-					if (state.dragging || state.flowing || $$.hasArcType() ||
-						(config.tooltip_grouped && index === eventReceiver.currentIdx)
-					) {
+					if (state.dragging || state.flowing || $$.hasArcType() || eventOnSameIdx) {
+						config.tooltip_show && eventOnSameIdx && $$.setTooltipPosition();
 						return;
 					}
 
@@ -439,7 +527,7 @@ export default {
 					}
 
 					index === -1 ?
-						$$.unselectRect() : $$.selectRectForSingle(this, rect, index);
+						$$.unselectRect() : $$.selectRectForSingle(this, index);
 
 					// As of individual data point(or <path>) element can't bind mouseover/out event
 					// to determine current interacting element, so use 'mousemove' event instead.
@@ -476,7 +564,7 @@ export default {
 
 		const {index} = d;
 
-		main.selectAll(`.${CLASS.shape}-${index}`)
+		main.selectAll(`.${$SHAPE.shape}-${index}`)
 			.each(function(d2) {
 				if (config.data_selection_grouped || $$.isWithinShape(this, d2)) {
 					$$.toggleShape?.(this, d2, index);
@@ -488,7 +576,7 @@ export default {
 	/**
 	 * Create an eventRect,
 	 * Register touch and drag events.
-	 * @param {object} eventRectEnter d3.select(CLASS.eventRects) object.
+	 * @param {object} eventRectEnter d3.select($EVENT.eventRects) object.
 	 * @private
 	 */
 	generateEventRectsForMultipleXs(eventRectEnter): void {
@@ -538,8 +626,8 @@ export default {
 
 		// select if selection enabled
 		if ($$.isBarType(closest.id) || $$.dist(closest, mouse) < config.point_sensitivity) {
-			$$.$el.main.selectAll(`.${CLASS.shapes}${$$.getTargetSelectorSuffix(closest.id)}`)
-				.selectAll(`.${CLASS.shape}-${closest.index}`)
+			$$.$el.main.selectAll(`.${$SHAPE.shapes}${$$.getTargetSelectorSuffix(closest.id)}`)
+				.selectAll(`.${$SHAPE.shape}-${closest.index}`)
 				.each(function() {
 					if (config.data_selection_grouped || $$.isWithinShape(this, closest)) {
 						$$.toggleShape?.(this, closest, closest.index);

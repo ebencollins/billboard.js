@@ -6,8 +6,7 @@
 import {expect} from "chai";
 import {select as d3Select} from "d3-selection";
 import util from "../assets/util";
-import CLASS from "../../src/config/classes";
-import axis from "../../src/Chart/api/axis";
+import {$AXIS} from "../../src/config/classes";
 
 describe("API axis", function() {
 	let chart;
@@ -38,6 +37,9 @@ describe("API axis", function() {
 						label: "Y2 Axis Label"
 					}
 				},
+				transition: {
+					duration: 0
+				},
 				onrendered: function() {
 					main = this.internal.$el.main;
 					resolve(true);
@@ -56,7 +58,7 @@ describe("API axis", function() {
 			const labels = chart.axis.labels(axisLabel);
 
 			setTimeout(() => {
-				const label = main.select(`.${CLASS.axisYLabel}`);
+				const label = main.select(`.${$AXIS.axisYLabel}`);
 
 				expect(label.text()).to.be.equal("New Y Axis Label");
 				expect(label.attr("dx")).to.be.equal("-0.5em");
@@ -78,7 +80,7 @@ describe("API axis", function() {
 			});
 
 			setTimeout(() => {
-				const label = main.select(`.${CLASS.axisY2Label}`);
+				const label = main.select(`.${$AXIS.axisY2Label}`);
 
 				expect(label.text()).to.be.equal("New Y2 Axis Label");
 				expect(label.attr("dx")).to.be.equal("-0.5em");
@@ -98,12 +100,13 @@ describe("API axis", function() {
 
 	describe("axis.min/max()", () => {
 		it("should update axis min value", done => {
-			const xAxisTick = main.select(`.${CLASS.axisX} .tick`).node();
+			const xAxisTick = main.select(`.${$AXIS.axisX} .tick`).node();
 			const xTickValue = +xAxisTick.getAttribute("transform").replace(rx, "$1");
 			const x = -1;
 			const y = 0;
 			const y2 = 5;
 
+			// when
 			chart.axis.min({
 				x,
 				y,
@@ -117,13 +120,13 @@ describe("API axis", function() {
 				expect(xTickValue).to.be.below(+xAxisTick.getAttribute("transform").replace(rx, "$1"));
 
 				// check for y max value
-				tspan = main.selectAll(`.${CLASS.axisY} tspan`).filter(function() {
+				tspan = main.selectAll(`.${$AXIS.axisY} tspan`).filter(function() {
 					return +d3Select(this).text() === y;
 				});
 
 				expect(tspan.empty()).to.be.false;
 
-				tspan = main.selectAll(`.${CLASS.axisY2} tspan`).filter(function() {
+				tspan = main.selectAll(`.${$AXIS.axisY2} tspan`).filter(function() {
 					return +d3Select(this).text() === y2;
 				});
 
@@ -134,7 +137,7 @@ describe("API axis", function() {
 		});
 
 		it("should update axis max value", done => {
-			const xAxisTick = main.selectAll(`.${CLASS.axisX} .tick`).nodes();
+			const xAxisTick = main.selectAll(`.${$AXIS.axisX} .tick`).nodes();
 			const lastIndex = xAxisTick.length - 1;
 
 			const lastXTickValue = +xAxisTick[lastIndex].getAttribute("transform").replace(rx, "$1");
@@ -142,6 +145,7 @@ describe("API axis", function() {
 			const y = 300;
 			const y2 = 100;
 
+			// when
 			chart.axis.max({
 				x,
 				y,
@@ -155,21 +159,95 @@ describe("API axis", function() {
 				expect(lastXTickValue).to.be.above(+xAxisTick[lastIndex].getAttribute("transform").replace(rx, "$1"));
 
 				// check for y max value
-				tspan = main.selectAll(`.${CLASS.axisY} tspan`).nodes();
+				tspan = main.selectAll(`.${$AXIS.axisY} tspan`).nodes();
 				expect(+tspan[tspan.length - 1].innerHTML).to.be.equal(y);
 
 				// check for y2 max value
-				tspan = main.selectAll(`.${CLASS.axisY2} tspan`).nodes();
+				tspan = main.selectAll(`.${$AXIS.axisY2} tspan`).nodes();
 				expect(+tspan[tspan.length - 1].innerHTML).to.be.equal(y2);
 
 				done();
 			}, 500);
 		});
+
+		it("axis.min(): check unset & shorthand", () => {
+			const current = chart.axis.min();
+
+			after(() => {
+				chart.axis?.min?.(current);
+			})
+
+			// when
+			chart.axis.min({
+				y: false
+			});
+
+			const min = chart.axis.min();
+
+			Object.keys(min).forEach(key => {
+				if (key === "y") {
+					expect(min[key]).to.be.undefined;
+				} else {
+					expect(typeof min[key] === "number").to.be.true;
+				}
+			});
+
+			// when - shorthand
+			chart.axis.min(-100);
+
+			expect(chart.axis.min()).to.be.deep.equal({
+				x: -1, y: -100, y2: -100
+			});
+
+			// when - shorthand
+			chart.axis.min(false);
+
+			expect(chart.axis.min()).to.be.deep.equal({
+				x: -1, y: undefined, y2: undefined
+			});
+		});
+
+		it("axis.max(): check unset & shorthand", () => {
+			const current = chart.axis.max();
+
+			after(() => {
+				chart.axis?.max?.(current);
+			})
+
+			// when
+			chart.axis.max({
+				y2: false
+			});
+
+			const max = chart.axis.max();
+
+			Object.keys(max).forEach(key => {
+				if (key === "y2") {
+					expect(max[key]).to.be.undefined;
+				} else {
+					expect(typeof max[key] === "number").to.be.true;
+				}
+			});
+
+			// when - shorthand
+			chart.axis.max(1000);
+
+			expect(chart.axis.max()).to.be.deep.equal({
+				x: 10, y: 1000, y2: 1000
+			});
+
+			// when - shorthand
+			chart.axis.max(false);
+
+			expect(chart.axis.max()).to.be.deep.equal({
+				x: 10, y: undefined, y2: undefined
+			});
+		});
 	});
 
 	describe("axis.range()", () => {
 		it("should update axis min/max value", done => {
-			const xAxisTick = main.selectAll(`.${CLASS.axisX} .tick`).nodes();
+			const xAxisTick = main.selectAll(`.${$AXIS.axisX} .tick`).nodes();
 			const xTickValueMin = +xAxisTick[0].getAttribute("transform").replace(rx, "$1");
 			const xTickValueMax = +xAxisTick[xAxisTick.length - 1].getAttribute("transform").replace(rx, "$1");
 
@@ -205,7 +283,7 @@ describe("API axis", function() {
 				expect(xTickValueMax).to.be.above(+xAxisTick[xAxisTick.length - 1].getAttribute("transform").replace(rx, "$1"));
 
 				// check for y value
-				tspan = main.selectAll(`.${CLASS.axisY} tspan`).filter(function() {
+				tspan = main.selectAll(`.${$AXIS.axisY} tspan`).filter(function() {
 					const val = +d3Select(this).text();
 
 					return val === min.y || val === max.y;
@@ -214,7 +292,7 @@ describe("API axis", function() {
 				expect(tspan.size()).to.be.equal(2);
 
 				// check for y2 value
-				tspan = main.selectAll(`.${CLASS.axisY2} tspan`).filter(function() {
+				tspan = main.selectAll(`.${$AXIS.axisY2} tspan`).filter(function() {
 					const val = +d3Select(this).text();
 
 					return val === min.y2 || val === max.y2;
@@ -224,6 +302,51 @@ describe("API axis", function() {
 
 				done();
 			}, 500);
+		});
+
+		it("axis.range(): check unset & shorthand", () => {
+			const current = chart.axis.range();
+
+			after(() => {
+				chart.axis?.range?.(current);
+			});
+
+			// when
+			chart.axis.range({
+				min: {
+					y: false
+				},
+				max: {
+					y2: false
+				}
+			});
+
+			const range = chart.axis.range();
+
+			expect(range.min.y).to.be.undefined;
+			expect(range.max.y2).to.be.undefined;
+
+			// when - shorthand
+			chart.axis.range({
+				min: -100,
+				max: 15000
+			});
+
+			expect(chart.axis.range()).to.deep.equal({
+				min: {x: -10, y: -100, y2: -100},
+				max: {x: 100, y: 15000, y2: 15000}
+			});
+
+			// when - shorthand
+			chart.axis.range({
+				min: false,
+				max: false
+			});
+
+			expect(chart.axis.range()).to.deep.equal({
+				min: {x: -10, y: undefined, y2: undefined},
+				max: {x: 100, y: undefined, y2: undefined}
+			});
 		});
 	});
 });

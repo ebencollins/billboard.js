@@ -22,19 +22,31 @@ export default {
 	 *  Specified function receives x of the data point to show.
 	 * @property {Function} [tooltip.format.name] Set format for the name of each data in tooltip.<br>
 	 *  Specified function receives name, ratio, id and index of the data point to show. ratio will be undefined if the chart is not donut/pie/gauge.
-	 * @property {Function} [tooltip.format.value] Set format for the value of each data in tooltip.<br>
-	 *  Specified function receives name, ratio, id and index of the data point to show. ratio will be undefined if the chart is not donut/pie/gauge.
-	 *  If undefined returned, the row of that value will be skipped.
+	 * @property {Function} [tooltip.format.value] Set format for the value of each data value in tooltip. If undefined returned, the row of that value will be skipped to be called.
+	 *  - Will pass following arguments to the given function:
+	 *    - `value {string}`: Value of the data point. If data row contains multiple or ranged(ex. candlestick, area range, etc.) value, formatter will be called as value length.
+	 *    - `ratio {number}`: Ratio of the data point in the `pie/donut/gauge` and `area/bar` when contains grouped data. Otherwise is `undefined`.
+	 *    - `id {string}`: id of the data point
+	 *    - `index {number}`: Index of the data point
 	 * @property {Function} [tooltip.position] Set custom position function for the tooltip.<br>
 	 *  This option can be used to modify the tooltip position by returning object that has top and left.
 	 *  - Will pass following arguments to the given function:
-	 *   - `data {Array}`: Current selected data array object.
-	 *   - `width {number}`: Width of tooltip.
-	 *   - `height {number}`: Height of tooltip.
-	 *   - `element {SVGElement}`: Tooltip event bound element
-	 *   - `pos {object}`: Current position of the tooltip.
+	 *    - `data {Array}`: Current selected data array object.
+	 *    - `width {number}`: Width of tooltip.
+	 *    - `height {number}`: Height of tooltip.
+	 *    - `element {SVGElement}`: Tooltip event bound element
+	 *    - `pos {object}`: Current position of the tooltip.
 	 * @property {Function|object} [tooltip.contents] Set custom HTML for the tooltip.<br>
-	 *  Specified function receives data, defaultTitleFormat, defaultValueFormat and color of the data point to show. If tooltip.grouped is true, data includes multiple data points.
+	 *  If tooltip.grouped is true, data includes multiple data points.<br><br>
+	 *  Specified function receives `data` array and `defaultTitleFormat`, `defaultValueFormat` and `color` functions of the data point to show.
+	 *  - **Note:**
+	 *    - defaultTitleFormat:
+	 *      - if `axis.x.tick.format` option will be used if set.
+	 *      - otherwise, will return function based on tick format type(category, timeseries).
+	 *    - defaultValueFormat:
+	 *	    - for Arc type (except gauge, radar), the function will return value from `(ratio * 100).toFixed(1)`.
+	 *	    - for Axis based types, will be used `axis.[y|y2].tick.format` option value if is set.
+	 *	    - otherwise, will parse value and return as number.
 	 * @property {string|HTMLElement} [tooltip.contents.bindto=undefined] Set CSS selector or element reference to bind tooltip.
 	 *  - **NOTE:** When is specified, will not be updating tooltip's position.
 	 * @property {string} [tooltip.contents.template=undefined] Set tooltip's template.<br><br>
@@ -51,7 +63,7 @@ export default {
 	 *    - The value array length should match with the data length
 	 * @property {boolean} [tooltip.init.show=false] Show tooltip at the initialization.
 	 * @property {number} [tooltip.init.x=0] Set x Axis index(or index for Arc(donut, gauge, pie) types) to be shown at the initialization.
-	 * @property {object} [tooltip.init.position={top: "0px",left: "50px"}] Set the position of tooltip at the initialization.
+	 * @property {object} [tooltip.init.position] Set the position of tooltip at the initialization.
 	 * @property {Function} [tooltip.onshow] Set a callback that will be invoked before the tooltip is shown.
 	 * @property {Function} [tooltip.onhide] Set a callback that will be invoked before the tooltip is hidden.
 	 * @property {Function} [tooltip.onshown] Set a callback that will be invoked after the tooltip is shown
@@ -77,6 +89,9 @@ export default {
 	 *      format: {
 	 *          title: function(x) { return "Data " + x; },
 	 *          name: function(name, ratio, id, index) { return name; },
+	 *
+	 *          // If data row contains multiple or ranged(ex. candlestick, area range, etc.) value,
+	 *          // formatter will be called as value length times.
 	 *          value: function(value, ratio, id, index) { return ratio; }
 	 *      },
 	 *      position: function(data, width, height, element, pos) {
@@ -143,10 +158,10 @@ export default {
 	 *      // show at the initialization
 	 *      init: {
 	 *          show: true,
-	 *          x: 2, // x Axis index(or index for Arc(donut, gauge, pie) types)
+	 *          x: 2, // x Axis index (or index for Arc(donut, gauge, pie) types)
 	 *          position: {
-	 *              top: "150px",
-	 *              left: "250px"
+	 *              top: "150px",  // specify as number or as string with 'px' unit string
+	 *              left: 250  // specify as number or as string with 'px' unit string
 	 *          }
 	 *      },
 	 *
@@ -200,10 +215,7 @@ export default {
 		> {},
 	tooltip_init_show: false,
 	tooltip_init_x: 0,
-	tooltip_init_position: {
-		top: "0px",
-		left: "50px"
-	},
+	tooltip_init_position: undefined,
 	tooltip_linked: false,
 	tooltip_linked_name: "",
 	tooltip_onshow: () => {},

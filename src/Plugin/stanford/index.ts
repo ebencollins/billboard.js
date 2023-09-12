@@ -6,13 +6,13 @@
 import {interpolateHslLong as d3InterpolateHslLong} from "d3-interpolate";
 import {hsl as d3Hsl} from "d3-color";
 import {scaleSequentialLog as d3ScaleSequentialLog} from "d3-scale";
-import CLASS from "../../config/classes";
+import {$TOOLTIP} from "../../config/classes";
 import {loadConfig} from "../../config/config";
 import Plugin from "../Plugin";
 import Options from "./Options";
 import Elements from "./Elements";
 import ColorScale from "./ColorScale";
-import {compareEpochs, isEmpty, isFunction, isString, parseDate, pointInRegion} from "./util";
+import {compareEpochs, isEmpty, isFunction, pointInRegion} from "./util";
 
 /**
  * Stanford diagram plugin
@@ -173,29 +173,6 @@ export default class Stanford extends Plugin {
 		});
 	}
 
-	xvCustom(d, xyValue): number {
-		const $$ = this;
-		const {axis, config} = $$;
-		let value = xyValue ? d[xyValue] : $$.getBaseValue(d);
-
-		if (axis.isTimeSeries()) {
-			value = parseDate.call($$, value);
-		} else if (axis.isCategorized() && isString(value)) {
-			value = config.axis_x_categories.indexOf(d.value);
-		}
-
-		return Math.ceil($$.scale.x(value));
-	}
-
-	yvCustom(d, xyValue): number {
-		const $$ = this;
-		const {scale} = $$;
-		const yScale = d.axis && d.axis === "y2" ? scale.y2 : scale.y;
-		const value = xyValue ? d[xyValue] : $$.getBaseValue(d);
-
-		return Math.ceil(yScale(value));
-	}
-
 	initStanfordData(): void {
 		const {config} = this;
 		const target = this.$$.data.targets[0];
@@ -228,20 +205,23 @@ export default class Stanford extends Plugin {
 
 		if (isEmpty(config.tooltip_contents)) {
 			config.tooltip_contents = function(d, defaultTitleFormat, defaultValueFormat, color) {
-				let html = `<table class="${CLASS.tooltip}"><tbody>`;
+				const {data_x} = config;
+				let html = `<table class="${$TOOLTIP.tooltip}"><tbody>`;
 
 				d.forEach(v => {
+					const {id = "", value = 0, epochs = 0, x = ""} = v;
+
 					html += `<tr>
-							<th>${defaultTitleFormat(config.data_x)}</th>
-							<th class="value">${defaultValueFormat(v.x)}</th>
+							<th>${data_x || ""}</th>
+							<th class="value">${defaultTitleFormat(x)}</th>
 						</tr>
 						<tr>
-							<th>${defaultTitleFormat(v.id)}</th>
-							<th class="value">${defaultValueFormat(v.value)}</th>
+							<th>${v.id}</th>
+							<th class="value">${defaultValueFormat(value)}</th>
 						</tr>
-						<tr class="${CLASS.tooltipName}-${v.id}">
-							<td class="name"><span style="background-color:${color(v)}"></span>${defaultTitleFormat("Epochs")}</td>
-							<td class="value">${defaultValueFormat(v.epochs)}</td>
+						<tr class="${$TOOLTIP.tooltipName}-${id}">
+							<td class="name"><span style="background-color:${color(v)}"></span>Epochs</td>
+							<td class="value">${defaultValueFormat(epochs)}</td>
 						</tr>`;
 				});
 

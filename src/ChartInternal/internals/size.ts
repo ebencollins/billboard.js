@@ -3,8 +3,8 @@
  * billboard.js project is licensed under the MIT license
  */
 import {document} from "../../module/browser";
-import CLASS from "../../config/classes";
-import {isValue, ceil10, capitalize} from "../../module/util";
+import {$AXIS, $SUBCHART} from "../../config/classes";
+import {isValue, ceil10, capitalize, isNumber, isEmpty} from "../../module/util";
 
 export default {
 	/**
@@ -69,20 +69,26 @@ export default {
 		const $$ = this;
 		const {config, state: {hasAxis}} = $$;
 		const isRotated = config.axis_rotated;
+		const isFitPadding = config.padding?.mode === "fit";
 		const axisId = isRotated ? "x" : "y";
 		const axesLen = hasAxis ? config[`axis_${axisId}_axes`].length : 0;
-		const axisWidth = hasAxis ? $$.getAxisWidthByAxisId(axisId, withoutRecompute) : 0;
-		let padding;
+		let axisWidth = hasAxis ? $$.getAxisWidthByAxisId(axisId, withoutRecompute) : 0;
+
+		if (!isFitPadding) {
+			axisWidth = ceil10(axisWidth);
+		}
+
+		let padding = config[`axis_${axisId}_inner`] || !config[`axis_${axisId}_show`] ? 0 : axisWidth;
 
 		if (isValue(config.padding_left)) {
-			padding = config.padding_left;
+			padding = config.padding_left + (isFitPadding && isRotated ? axisWidth : 0);
 		} else if (hasAxis && isRotated) {
 			padding = !config.axis_x_show ?
-				1 : Math.max(ceil10(axisWidth), 40);
-		} else if (hasAxis && (!config.axis_y_show || config.axis_y_inner)) { // && !config.axis_rotated
-			padding = $$.axis.getAxisLabelPosition("y").isOuter ? 30 : 1;
-		} else {
-			padding = ceil10(axisWidth);
+				1 : (isFitPadding ? axisWidth : Math.max(axisWidth, 40));
+		}
+
+		if (hasAxis && (isFitPadding || config[`axis_${axisId}_inner`]) && config[`axis_${axisId}_label`].text) {
+			padding += $$.axis.getAxisLabelPosition("y").isOuter ? 20 : 0;
 		}
 
 		return padding + (axisWidth * axesLen);
@@ -91,25 +97,41 @@ export default {
 	getCurrentPaddingRight(withXAxisTickTextOverflow = false): number {
 		const $$ = this;
 		const {config, state: {hasAxis}} = $$;
-		const defaultPadding = 10;
+		const isRotated = config.axis_rotated;
+		const isFitPadding = config.padding?.mode === "fit";
+		const defaultPadding = isFitPadding ? 2 : 10;
 		const legendWidthOnRight = $$.state.isLegendRight ? $$.getLegendWidth() + 20 : 0;
 		const axesLen = hasAxis ? config.axis_y2_axes.length : 0;
-		const axisWidth = hasAxis ? $$.getAxisWidthByAxisId("y2") : 0;
+		const axisLabelWidth = $$.axis?.getAxisLabelPosition("y2").isOuter ? 20 : 0;
 		const xAxisTickTextOverflow = withXAxisTickTextOverflow ?
 			$$.axis.getXAxisTickTextY2Overflow(defaultPadding) : 0;
-		let padding;
+		let axisWidth = hasAxis && !config.axis_y2_inner ? $$.getAxisWidthByAxisId("y2") : 1;
+
+		if (!isFitPadding) {
+			axisWidth = ceil10(axisWidth);
+		}
+
+		let padding = isRotated ? 0 : Math.max(axisWidth + legendWidthOnRight, xAxisTickTextOverflow);
 
 		if (isValue(config.padding_right)) {
-			padding = config.padding_right + 1; // 1 is needed not to hide tick line
-		} else if ($$.axis && config.axis_rotated) {
+			// padding = config.padding_right + (hasAxis ? 1 : 0); // 1 is needed not to hide tick line
+
+			padding = config.padding_right +
+				(isFitPadding && (isRotated || !config.axis_y2_show ? defaultPadding : padding)) +
+				(hasAxis && !isFitPadding ? 1 : 0); // 1 is needed not to hide tick line
+		} else if ($$.axis && isRotated) {
 			padding = defaultPadding + legendWidthOnRight;
-		} else if ($$.axis && (!config.axis_y2_show || config.axis_y2_inner)) { // && !config.axis_rotated
+		} else if ($$.axis && (!config.axis_y2_show || config.axis_y2_inner)) {
 			padding = Math.max(
-				2 + legendWidthOnRight + ($$.axis.getAxisLabelPosition("y2").isOuter ? 20 : 0),
+				(isFitPadding && !config.axis_y2_show ? 2 : 1) + legendWidthOnRight + axisLabelWidth,
 				xAxisTickTextOverflow
 			);
-		} else {
-			padding = Math.max(ceil10(axisWidth) + legendWidthOnRight, xAxisTickTextOverflow);
+		}
+
+		if (hasAxis && !isRotated && isFitPadding &&
+			config.axis_y2_show && !config.axis_y2_inner && config.axis_y2_label.text
+		) {
+			padding += axisLabelWidth;
 		}
 
 		return padding + (axisWidth * axesLen);
@@ -170,7 +192,7 @@ export default {
 		const $$ = this;
 		const {config, $el} = $$;
 		const hasLeftAxisRect = config.axis_rotated || (!config.axis_rotated && !config.axis_y_inner);
-		const leftAxisClass = config.axis_rotated ? CLASS.axisX : CLASS.axisY;
+		const leftAxisClass = config.axis_rotated ? $AXIS.axisX : $AXIS.axisY;
 		const leftAxis = $el.main.select(`.${leftAxisClass}`).node();
 		const svgRect = leftAxis && hasLeftAxisRect ? leftAxis.getBoundingClientRect() : {right: 0};
 		const chartRect = $el.chart.node().getBoundingClientRect();
@@ -204,7 +226,7 @@ export default {
 			.attr("height", current.height);
 
 		if (hasAxis) {
-			const brush = svg.select(`.${CLASS.brush} .overlay`);
+			const brush = svg.select(`.${$SUBCHART.brush} .overlay`);
 			const brushSize = {width: 0, height: 0};
 
 			if (brush.size()) {
@@ -232,6 +254,46 @@ export default {
 		}
 	},
 
+	getCurrentPadding(): {top: number, bottom: number, left: number, right: number} {
+		const $$ = this;
+
+		return {
+			top: $$.getCurrentPaddingTop(),
+			bottom: $$.getCurrentPaddingBottom(),
+			left: $$.getCurrentPaddingLeft(),
+			right: $$.getCurrentPaddingRight()
+		};
+	},
+
+	/**
+	 * Get resetted padding values when 'padding=false' option is set
+	 * https://github.com/naver/billboard.js/issues/2367
+	 * @param {number|object} v Padding values to be resetted
+	 * @returns {number|object} Padding value
+	 * @private
+	 */
+	getResettedPadding<T = number | {[key: string]: string}>(v: T): T {
+		const $$ = this;
+		const {config} = $$;
+		const isNum = isNumber(v);
+		let p: any = isNum ? 0 : {};
+
+		if (config.padding === false) {
+			!isNum && Object.keys(v as object).forEach(key => {
+				// when data.lables=true, do not reset top padding
+				p[key] = (
+					!isEmpty(config.data_labels) &&
+					config.data_labels !== false &&
+					key === "top"
+				) ? v[key] : 0;
+			});
+		} else {
+			p = v;
+		}
+
+		return p as T;
+	},
+
 	/**
 	 * Update size values
 	 * @param {boolean} isInit If is called at initialization
@@ -241,7 +303,8 @@ export default {
 		const $$ = this;
 		const {config, state, $el: {legend}} = $$;
 		const isRotated = config.axis_rotated;
-		const hasArc = $$.hasArcType();
+		const isNonAxis = $$.hasArcType() || state.hasTreemap;
+		const isFitPadding = config.padding?.mode === "fit";
 
 		!isInit && $$.setContainerSize();
 
@@ -250,30 +313,38 @@ export default {
 			height: legend ? $$.getLegendHeight() : 0
 		};
 
-		if (!hasArc && config.axis_x_show && config.axis_x_tick_autorotate) {
+		if (!isNonAxis && config.axis_x_show && config.axis_x_tick_autorotate) {
 			$$.updateXAxisTickClip();
 		}
 
 		const legendHeightForBottom = state.isLegendRight || state.isLegendInset ? 0 : currLegend.height;
-		const xAxisHeight = isRotated || hasArc ? 0 : $$.getHorizontalAxisHeight("x");
+		const xAxisHeight = isRotated || isNonAxis ? 0 : $$.getHorizontalAxisHeight("x");
 
 		const subchartXAxisHeight = config.subchart_axis_x_show && config.subchart_axis_x_tick_text_show ?
 			xAxisHeight : 30;
-		const subchartHeight = config.subchart_show && !hasArc ?
+		const subchartHeight = config.subchart_show && !isNonAxis ?
 			(config.subchart_size_height + subchartXAxisHeight) : 0;
 
+		// when needle is shown with legend, it need some bottom space to not overlap with legend text
+		const gaugeHeight = $$.hasType("gauge") && config.arc_needle_show &&
+			!config.gauge_fullCircle && !config.gauge_label_show ? 10 : 0;
+
+		const padding = $$.getCurrentPadding();
+
 		// for main
-		state.margin = !hasArc && isRotated ? {
-			top: $$.getHorizontalAxisHeight("y2") + $$.getCurrentPaddingTop(),
-			right: hasArc ? 0 : $$.getCurrentPaddingRight(true),
-			bottom: $$.getHorizontalAxisHeight("y") + legendHeightForBottom + $$.getCurrentPaddingBottom(),
-			left: subchartHeight + (hasArc ? 0 : $$.getCurrentPaddingLeft())
+		state.margin = !isNonAxis && isRotated ? {
+			top: $$.getHorizontalAxisHeight("y2") + padding.top,
+			right: isNonAxis ? 0 : $$.getCurrentPaddingRight(true),
+			bottom: $$.getHorizontalAxisHeight("y") + legendHeightForBottom + padding.bottom,
+			left: subchartHeight + (isNonAxis ? 0 : padding.left)
 		} : {
-			top: 4 + $$.getCurrentPaddingTop(), // for top tick text
-			right: hasArc ? 0 : $$.getCurrentPaddingRight(true),
-			bottom: xAxisHeight + subchartHeight + legendHeightForBottom + $$.getCurrentPaddingBottom(),
-			left: hasArc ? 0 : $$.getCurrentPaddingLeft()
+			top: (isFitPadding ? 0 : 4) + padding.top, // for top tick text
+			right: isNonAxis ? 0 : $$.getCurrentPaddingRight(true),
+			bottom: gaugeHeight + xAxisHeight + subchartHeight + legendHeightForBottom + padding.bottom,
+			left: isNonAxis ? 0 : padding.left
 		};
+
+		state.margin = $$.getResettedPadding(state.margin);
 
 		// for subchart
 		state.margin2 = isRotated ? {
@@ -324,19 +395,21 @@ export default {
 		}
 
 		// for arc
-		const hasGauge = $$.hasType("gauge");
-		const isLegendRight = config.legend_show && state.isLegendRight;
+		if ($$.hasArcType()) {
+			const hasGauge = $$.hasType("gauge");
+			const isLegendRight = config.legend_show && state.isLegendRight;
 
-		state.arcWidth = state.width - (isLegendRight ? currLegend.width + 10 : 0);
-		state.arcHeight = state.height - (isLegendRight && !hasGauge ? 0 : 10);
+			state.arcWidth = state.width - (isLegendRight ? currLegend.width + 10 : 0);
+			state.arcHeight = state.height - (isLegendRight && !hasGauge ? 0 : 10);
 
-		if (hasGauge && !config.gauge_fullCircle) {
-			state.arcHeight += state.height - $$.getPaddingBottomForGauge();
+			if (hasGauge && !config.gauge_fullCircle) {
+				state.arcHeight += state.height - $$.getPaddingBottomForGauge();
+			}
+
+			$$.updateRadius?.();
 		}
 
-		$$.updateRadius?.();
-
-		if (state.isLegendRight && hasArc) {
+		if (state.isLegendRight && isNonAxis) {
 			state.margin3.left = state.arcWidth / 2 + state.radiusExpanded * 1.1;
 		}
 	}

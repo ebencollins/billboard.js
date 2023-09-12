@@ -4,7 +4,7 @@ module.exports = function(api) {
 	const presets = [
 		"@babel/typescript",
 		[
-			"@babel/env", {
+			"@babel/preset-env", {
 				"targets": {
 					"browsers": [
 						"last 2 versions",
@@ -14,19 +14,21 @@ module.exports = function(api) {
 				},
 				"modules": false,
 				"loose": true,
-				"useBuiltIns": false
+				"useBuiltIns": false,
+				exclude: ["@babel/plugin-transform-block-scoping"]
 			}
 		]
 	];
 
 	const plugins = [
+		["@babel/plugin-transform-runtime"],
 		[
-			"@babel/plugin-transform-runtime", {
-				"useESModules": true
-			}
-		], [
 			"@babel/plugin-proposal-class-properties", {
 				"loose": true
+			}
+		], [
+			"@babel/plugin-transform-arrow-functions", {
+				"spec": true
 			}
 		],
 		"@babel/proposal-object-rest-spread",

@@ -4,8 +4,8 @@
  * @ignore
  */
 import {getScale} from "../internals/scale";
-import {isDefined, isNumber, isString} from "../../module/util";
-import {d3Selection} from "../../../types/types";
+import {isDefined, isNumber, isString, isValue} from "../../module/util";
+import type {d3Selection} from "../../../types/types";
 
 export default class AxisRendererHelper {
 	private owner;
@@ -75,7 +75,9 @@ export default class AxisRendererHelper {
 			value => `translate(0,${value})`;
 
 		return (selection, scale) => {
-			selection.attr("transform", d => fn(Math.ceil(scale(d))));
+			selection.attr("transform", d => (
+				isValue(d) ? fn(Math.ceil(scale(d))) : null
+			));
 		};
 	}
 
@@ -131,14 +133,6 @@ export default class AxisRendererHelper {
 
 					return r;
 				});
-		} else {
-			for (let i = Math.ceil(start); i < end; i++) {
-				ticks.push(i);
-			}
-
-			if (ticks.length > 0 && ticks[0] > 0) {
-				ticks.unshift(ticks[0] - (ticks[1] - ticks[0]));
-			}
 		}
 
 		return ticks;

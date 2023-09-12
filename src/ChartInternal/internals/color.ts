@@ -4,10 +4,12 @@
  */
 import {select as d3Select} from "d3-selection";
 import {scaleOrdinal as d3ScaleOrdinal} from "d3-scale";
-import {document, window} from "../../module/browser";
-import CLASS from "../../config/classes";
+import {document} from "../../module/browser";
+import {$ARC, $COLOR, $SHAPE} from "../../config/classes";
 import {KEY} from "../../module/Cache";
 import {notEmpty, isFunction, isObject, isString} from "../../module/util";
+import type {IArcData, IDataRow} from "../data/IData";
+import {d3Selection} from "../../../types";
 
 /**
  * Set pattern's background color
@@ -34,57 +36,54 @@ const colorizePattern = (pattern, color, id: string) => {
 	};
 };
 
+/**
+ * Get color pattern from CSS file
+ * CSS should be defined as: background-image: url("#00c73c;#fa7171; ...");
+ * @param {d3Selection} element Chart element
+ * @returns {Array}
+ * @private
+ */
+function getColorFromCss(element: d3Selection): string[] {
+	const cacheKey = KEY.colorPattern;
+	const {body} = document;
+	let pattern = body[cacheKey];
+
+	if (!pattern) {
+		const delimiter = ";";
+		const content = element
+			.classed($COLOR.colorPattern, true)
+			.style("background-image");
+
+		element.classed($COLOR.colorPattern, false);
+
+		if (content.indexOf(delimiter) > -1) {
+			pattern = content
+				.replace(/url[^#]*|["'()]|(\s|%20)/g, "")
+				.split(delimiter)
+				.map(v => v.trim().replace(/[\"'\s]/g, ""))
+				.filter(Boolean);
+
+			body[cacheKey] = pattern;
+		}
+	}
+
+	return pattern;
+}
+
 // Replacement of d3.schemeCategory10.
 // Contained differently depend on d3 version: v4(d3-scale), v5(d3-scale-chromatic)
 const schemeCategory10 = ["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd", "#8c564b", "#e377c2", "#7f7f7f", "#bcbd22", "#17becf"];
 
 export default {
-	/**
-	 * Get color pattern from CSS file
-	 * CSS should be defined as: background-image: url("#00c73c;#fa7171; ...");
-	 * @returns {Array}
-	 * @private
-	 */
-	getColorFromCss(): string[] {
-		const cacheKey = KEY.colorPattern;
-		const {body} = document;
-		let pattern = body[cacheKey];
-
-		if (!pattern) {
-			const delimiter = ";";
-			const span = document.createElement("span");
-
-			span.className = CLASS.colorPattern;
-			span.style.display = "none";
-			body.appendChild(span);
-
-			const content = window.getComputedStyle(span).backgroundImage;
-
-			span.parentNode.removeChild(span);
-
-			if (content.indexOf(delimiter) > -1) {
-				pattern = content
-					.replace(/url[^#]*|["'()]|(\s|%20)/g, "")
-					.split(delimiter)
-					.map(v => v.trim().replace(/[\"'\s]/g, ""))
-					.filter(Boolean);
-
-				body[cacheKey] = pattern;
-			}
-		}
-
-		return pattern;
-	},
-
 	generateColor(): Function {
 		const $$ = this;
-		const {config} = $$;
+		const {$el, config} = $$;
 		const colors = config.data_colors;
 		const callback = config.data_color;
 		const ids: string[] = [];
 
 		let pattern = notEmpty(config.color_pattern) ? config.color_pattern :
-			d3ScaleOrdinal($$.getColorFromCss() || schemeCategory10).range();
+			d3ScaleOrdinal(getColorFromCss($el.chart) || schemeCategory10).range();
 
 		const originalColorPattern = pattern;
 
@@ -103,8 +102,11 @@ export default {
 			$$.patterns = colorizedPatterns;
 		}
 
-		return function(d) {
-			const id: string = d.id || d.data?.id || d;
+		return function(d: IDataRow | IArcData | string): string {
+			const id: string = (d as IDataRow).id ||
+				(d as IArcData).data?.id ||
+				d as string;
+
 			const isLine = $$.isTypeOf(id, ["line", "spline", "step"]) || !config.data_types[id];
 			let color;
 
@@ -160,12 +162,13 @@ export default {
 
 	/**
 	 * Append data backgound color filter definition
+	 * @param {string} color Color string
 	 * @private
 	 */
-	generateDataLabelBackgroundColorFilter(): void {
+	generateDataLabelBackgroundColorFilter(color?: string): void {
 		const $$ = this;
 		const {$el, config, state} = $$;
-		const backgroundColors = config.data_labels_backgroundColors;
+		const backgroundColors = color || config.data_labels_backgroundColors;
 
 		if (backgroundColors) {
 			let ids: string[] = [];
@@ -177,7 +180,7 @@ export default {
 			}
 
 			ids.forEach(v => {
-				const id = `${state.datetimeId}-labels-bg${$$.getTargetSelectorSuffix(v)}`;
+				const id = `${state.datetimeId}-labels-bg${$$.getTargetSelectorSuffix(v)}${color ? $$.getTargetSelectorSuffix(color) : ""}`;
 
 				$el.defs.append("filter")
 					.attr("x", "0")
@@ -188,6 +191,82 @@ export default {
 					.html(`<feFlood flood-color="${v === "" ? backgroundColors : backgroundColors[v]}" /><feComposite in="SourceGraphic"/>`);
 			});
 		}
+	},
+
+	/**
+	 * Get data gradient color url
+	 * @param {string} id Data id
+	 * @returns {string}
+	 * @private
+	 */
+	getGradienColortUrl(id: string): string {
+		return `url(#${this.state.datetimeId}-gradient${this.getTargetSelectorSuffix(id)})`;
+	},
+
+	/**
+	 * Update linear/radial gradient definition
+	 * - linear: area & bar only
+	 * - radial: type which has data points only
+	 * @private
+	 */
+	updateLinearGradient(): void {
+		const $$ = this;
+		const {config, data: {targets}, state: {datetimeId}, $el: {defs}} = $$;
+
+		targets.forEach(d => {
+			const id = `${datetimeId}-gradient${$$.getTargetSelectorSuffix(d.id)}`;
+			const radialGradient = $$.hasPointType() && config.point_radialGradient;
+			const supportedType = ($$.isAreaType(d) && "area") || ($$.isBarType(d) && "bar");
+
+			if ((radialGradient || supportedType) && defs.select(`#${id}`).empty()) {
+				const color = $$.color(d);
+				const gradient = {
+					defs: <null|d3Selection>null,
+					stops: <[number, string|Function|null, number][]>[]
+				};
+
+				if (radialGradient) {
+					const {
+						cx = 0.3,
+						cy = 0.3,
+						r = 0.7,
+						stops = [[0.1, color, 0], [0.9, color, 1]]
+					} = radialGradient;
+
+					gradient.stops = stops;
+					gradient.defs = defs.append("radialGradient")
+						.attr("id", `${id}`)
+						.attr("cx", cx)
+						.attr("cy", cy)
+						.attr("r", r);
+				} else {
+					const isRotated = config.axis_rotated;
+					const {
+						x = isRotated ? [1, 0] : [0, 0],
+						y = isRotated ? [0, 0] : [0, 1],
+						stops = [[0, color, 1], [1, color, 0]]
+					} = config[`${supportedType}_linearGradient`];
+
+					gradient.stops = stops;
+					gradient.defs = defs.append("linearGradient")
+						.attr("id", `${id}`)
+						.attr("x1", x[0])
+						.attr("x2", x[1])
+						.attr("y1", y[0])
+						.attr("y2", y[1]);
+				}
+
+				gradient.stops.forEach((v: [number, string|Function|null, number]) => {
+					const [offset, stopColor, stopOpacity] = v;
+					const colorValue = isFunction(stopColor) ? stopColor.bind($$.api)(d.id) : stopColor;
+
+					gradient.defs && gradient.defs.append("stop")
+						.attr("offset", offset)
+						.attr("stop-color", colorValue || color)
+						.attr("stop-opacity", stopOpacity);
+				});
+			}
+		});
 	},
 
 	/**
@@ -214,8 +293,8 @@ export default {
 		main.selectAll(
 			isObject(d) ?
 				// when is Arc type
-				`.${CLASS.arc}${$$.getTargetSelectorSuffix(d.id)}` :
-				`.${CLASS.shape}-${d}`
+				`.${$ARC.arc}${$$.getTargetSelectorSuffix(d.id)}` :
+				`.${$SHAPE.shape}-${d}`
 		).style("fill", color);
 	}
 };

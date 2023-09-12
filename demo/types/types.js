@@ -13,18 +13,23 @@ const Types = {
         "spline",
         "step",
         "candlestick",
+        "treemap",
+        "polar",
         "radar",
         "gauge",
         "gauge-multi",
         "gauge-stack-data",
+        "gauge-arc-length",
         "donut",
         "pie",
         "pie-inner-radius",
         "pie-outer-radius",
+        "pie-corner-radius",
+        "gauge-needle",
+        "donut-needle",
         "normalized",
         "combination",
         "multi-axes",
-        "gauge-arc-length",
     ],
     getRandom(min = 100, max = 1000) {
         return Math.random() * (max - min) + min;
@@ -49,8 +54,8 @@ const Types = {
                         data = [
                             data, // open
                             data + this.getRandom(50, 350), // high
-                            data - this.getRandom(50, 150), // low
-                            data + this.getRandom(50, 150)  // close
+                            data - this.getRandom(50, 130), // low
+                            data + this.getRandom(50, 200)  // close
                         ]
                     }
                     
@@ -110,6 +115,21 @@ const Types = {
                 outerRadius: {},
                 label: {}
             },
+            polar: {
+                label: {
+                    format: function(value, ratio, id) {
+                        return `${value}\n(${(ratio * 100).toFixed(0)}%)`;
+                    },
+                    show: false
+                },
+                level:{
+                    depth: 4,
+                    text: {
+                        backgroundColor: "yellow"
+                    }
+                },
+                startingAngle: -0.6
+            },
             radar: {
                 axis: {
                     text: {
@@ -128,7 +148,6 @@ const Types = {
         };
     },
     generate: function() {
-
         // append div
         this.types.forEach((v, i) => {
             const div = document.createElement("div");
@@ -161,6 +180,29 @@ const Types = {
                 options.padding.top = 5;
 
             } else if (type === "candlestick") {
+
+            } else if (type === "treemap") {
+                options.data.columns = [
+                    ["data1", 250],
+                    ["data2", 200],
+                    ["data3", 300],
+                    ["data4", 150],
+                    ["data5", 100],
+                    ["data6", 70]
+                ];
+
+                options.data.labels = {
+                    colors: "#fff",
+                    centered: true
+                };
+
+                options.treemap = {
+                    label: {
+                    format: function(value, ratio, id) {
+                          return `${(ratio * 100).toFixed(1)}%`;
+                     }
+                  }
+                };
             
             } else if (type === "gauge-stack-data") {
                 type = "gauge";
@@ -168,6 +210,17 @@ const Types = {
                 options.data.labels = {
                     colors: "#fff"
                 }
+
+            } else if (type === "polar") {
+                options.data.columns = [
+                    ["data0", 35],
+                    ["data1", 110],
+                    ["data2", 80]
+                ];
+                options.data.order = null;
+
+                options.polar.level.max = 120;
+
             
             } else if (type === "pie-inner-radius") {
                 type = "pie";
@@ -185,6 +238,95 @@ const Types = {
                     data0: 50,
                     data1: 65,
                     data2: 35
+                };
+            } else if (type === "pie-corner-radius") {
+                type = "pie";
+                options.arc = {
+                    cornerRadius: 70
+                };
+                options.pie.label.show = false;
+                options.data.columns = [
+                    ["data1", 30],
+                    ["data2", 45],
+                    ["data3", 25],
+                    ["data4", 35],
+                    ["data5", 15],
+                    ["data6", 35]
+                ];
+            } else if (type === "gauge-needle") {
+                type = "gauge";
+
+                options.data.columns = [
+                    ["a", 20],
+                    ["b", 20],
+                    ["c", 20],
+                    ["d", 20],
+                    ["e", 20]
+                ];
+
+                options.arc = {
+                    needle: {
+                        show: true,
+                        length: 80,
+                        value: 83,
+                        top: {
+                            // rx and ry are the two radii of the ellipse;
+                            // https://developer.mozilla.org/en-US/docs/Web/SVG/Attribute/d#elliptical_arc_curve
+                            rx: 1,
+                            ry: 1,
+                            width: 1
+                          },
+                          bottom: {
+                            // rx and ry are the two radii of the ellipse;
+                            // https://developer.mozilla.org/en-US/docs/Web/SVG/Attribute/d#elliptical_arc_curve
+                            rx: 1,
+                            ry: 1,
+                            width: 10,
+                            len: 10
+                        }
+                    }
+                };
+
+                options.gauge = {
+                    width: 10,
+                    title: "{=NEEDLE_VALUE}%\n",
+                    label: {
+                      format: function(value, ratio, id) { return id; }
+                    }
+                };
+
+            } else if (type === "donut-needle") {
+                type = "donut";
+
+                options.data.columns = [
+                   	["data1", 10],
+                    ["data2", 10],
+                    ["data3", 10],
+                    ["data4", 10],
+                    ["data5", 10],
+                    ["data6", 10]
+                ];
+
+                options.arc = {
+                    needle: {
+                        show: true,
+                        length: 80,
+                        value: 35,
+                        color: "grey",
+                        path: function(length) {
+                            const len = length - 20;
+                            const width = 3;
+                            const path = `M 0 -${len + 20}
+                                L -10 -${len}
+                                L -${width} -${len}
+                                L -${width} 0 
+                                A 0 1 0 0 0 ${width} 0
+                                L ${width} -${len}
+                                L 10 -${len} Z`;
+
+                            return path;
+                        }
+                    }
                 };
                 
             } else if (type === "combination") {
@@ -234,15 +376,24 @@ const Types = {
                 options.padding = {
                     top: 15, bottom: 0, left: 0, right: 0
                 };
+                
+                options.arc = {
+                    cornerRadius: 15
+                };
 
+                options.data.columns = [
+                    ["data", 77]
+                ];
                 options.data.labels = false;
                 options.gauge = {
-                    type: "multi",
+                    type: "single",
                     fullCircle: true,
-                    arcLength: 75,
+                    arcLength: 70,
+                    startingAngle: -2.2,
+                    width: 20,
                     label: {
-                        show: false
-                    }
+                        extents: function() { return ""; }
+                      },
                 };
             }
 

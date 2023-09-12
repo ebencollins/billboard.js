@@ -9,20 +9,142 @@ import {
 } from "d3-shape";
 import {interpolate as d3Interpolate} from "d3-interpolate";
 import {document} from "../../module/browser";
-import CLASS from "../../config/classes";
-import {callFn, endall, isFunction, isNumber, isObject, isUndefined, setTextValue} from "../../module/util";
-import {d3Selection} from "../../../types/types";
-import {IData} from "../data/IData";
+import {$ARC, $COMMON, $FOCUS, $GAUGE} from "../../config/classes";
+import {callFn, endall, isDefined, isFunction, isNumber, isObject, isUndefined, setTextValue, tplProcess} from "../../module/util";
+import type {d3Selection} from "../../../types/types";
+import type {IArcData, IArcDataRow, IData} from "../data/IData";
+
+/**
+ * Get radius functions
+ * @param {number} expandRate Expand rate number.
+ *   - If 0, means for "normal" radius.
+ *   - If > 0, means for "expanded" radius.
+ * @returns {object} radius functions
+ * @private
+ */
+function getRadiusFn(expandRate = 0) {
+	const $$ = this;
+	const {config, state} = $$;
+	const hasMultiArcGauge = $$.hasMultiArcGauge();
+	const singleArcWidth = state.gaugeArcWidth / $$.filterTargetsToShow($$.data.targets).length;
+	const expandWidth = expandRate ? (
+		Math.min(
+			state.radiusExpanded * expandRate - state.radius,
+			singleArcWidth * 0.8 - (1 - expandRate) * 100
+		)) : 0;
+
+	return {
+		/**
+		 * Getter of arc innerRadius value
+		 * @param {IArcData} d Data object
+		 * @returns {number} innerRadius value
+		 * @private
+		 */
+		inner(d: IArcData) {
+			const {innerRadius} = $$.getRadius(d);
+
+			return hasMultiArcGauge ?
+				state.radius - singleArcWidth * (d.index + 1) :
+				isNumber(innerRadius) ? innerRadius : 0;
+		},
+
+		/**
+		 * Getter of arc outerRadius value
+		 * @param {IArcData} d Data object
+		 * @returns {number} outerRadius value
+		 * @private
+		 */
+		outer(d: IArcData) {
+			const {outerRadius} = $$.getRadius(d);
+			let radius: number;
+
+			if (hasMultiArcGauge) {
+				radius = state.radius - singleArcWidth * d.index + expandWidth;
+			} else if ($$.hasType("polar") && !expandRate) {
+				radius = $$.getPolarOuterRadius(d, outerRadius);
+			} else {
+				radius = outerRadius;
+
+				if (expandRate) {
+					let {radiusExpanded} = state;
+
+					if (state.radius !== outerRadius) {
+						radiusExpanded -= Math.abs(state.radius - outerRadius);
+					}
+
+					radius = radiusExpanded * expandRate;
+				}
+			}
+
+			return radius;
+		},
+
+		/**
+		 * Getter of arc cornerRadius value
+		 * @param {IArcData} d Data object
+		 * @param {number} outerRadius outer radius value
+		 * @returns {number} cornerRadius value
+		 * @private
+		 */
+		corner(d: IArcData, outerRadius): number {
+			const {
+				arc_cornerRadius_ratio: ratio = 0,
+				arc_cornerRadius: cornerRadius = 0
+			} = config;
+			const {data: {id}, value} = d;
+			let corner = 0;
+
+			if (ratio) {
+				corner = ratio * outerRadius;
+			} else {
+				corner = isNumber(cornerRadius) ?
+					cornerRadius : cornerRadius.call($$.api, id, value, outerRadius);
+			}
+
+			return corner;
+		}
+	};
+}
+
+/**
+ * Get attrTween function to get interpolated value on transition
+ * @param {Function} fn Arc function to execute
+ * @returns {Function} attrTween function
+ * @private
+ */
+function getAttrTweenFn(fn: (d: IArcData) => string) {
+	return function(d: IArcData): (t: number) => string {
+		const getAngleKeyValue = ({startAngle = 0, endAngle = 0, padAngle = 0}) => ({
+			startAngle, endAngle, padAngle
+		});
+
+		// d3.interpolate interpolates id value, if id is given as color string(ex. gold, silver, etc)
+		// to avoid unexpected behavior, interpolate only angle values
+		// https://github.com/naver/billboard.js/issues/3321
+		const interpolate = d3Interpolate(
+			getAngleKeyValue(this._current), getAngleKeyValue(d)
+		);
+
+		this._current = d;
+
+		return function(t: number): string {
+			const interpolated = interpolate(t) as IArcData;
+			const {data, index, value} = d;
+
+			return fn({...interpolated, data, index, value});
+		};
+	};
+}
 
 export default {
 	initPie(): void {
 		const $$ = this;
 		const {config} = $$;
 		const dataType = config.data_type;
-		const padding = config.pie_padding;
+		const padding = config[`${dataType}_padding`];
 		const startingAngle = config[`${dataType}_startingAngle`] || 0;
 		const padAngle = (
-			$$.hasType("pie") && padding ? padding * 0.01 :
+			padding ? padding * 0.01 :
 				config[`${dataType}_padAngle`]
 		) || 0;
 
@@ -37,14 +159,15 @@ export default {
 	updateRadius(): void {
 		const $$ = this;
 		const {config, state} = $$;
-		const padding = config.pie_padding;
+		const dataType = config.data_type;
+		const padding = config[`${dataType}_padding`];
 		const w = config.gauge_width || config.donut_width;
 		const gaugeArcWidth = $$.filterTargetsToShow($$.data.targets).length *
 			config.gauge_arcs_minWidth;
 
 		// determine radius
 		state.radiusExpanded = Math.min(state.arcWidth, state.arcHeight) / 2 * (
-			$$.hasMultiArcGauge() ? 0.85 : 1
+			$$.hasMultiArcGauge() && config.gauge_label_show ? 0.85 : 1
 		);
 
 		state.radius = state.radiusExpanded * 0.95;
@@ -72,7 +195,7 @@ export default {
 	 * @returns {object}
 	 * @private
 	 */
-	getRadius(d): {innerRadius: number, outerRadius: number} {
+	getRadius(d: IArcData): {innerRadius: number, outerRadius: number} {
 		const $$ = this;
 		const data = d?.data;
 		let {innerRadius, outerRadius} = $$.state;
@@ -113,7 +236,7 @@ export default {
 		return len * Math.PI;
 	},
 
-	getStartAngle(): number {
+	getGaugeStartAngle(): number {
 		const $$ = this;
 		const {config} = $$;
 		const isFullCircle = config.gauge_fullCircle;
@@ -135,7 +258,7 @@ export default {
 	updateAngle(dValue) {
 		const $$ = this;
 		const {config, state} = $$;
-		let pie = $$.pie;
+		let {pie} = $$;
 		let d = dValue;
 		let found = false;
 
@@ -143,7 +266,7 @@ export default {
 			return null;
 		}
 
-		const gStart = $$.getStartAngle();
+		const gStart = $$.getGaugeStartAngle();
 		const radius = config.gauge_fullCircle ? $$.getArcLength() : gStart * -2;
 
 		if (d.data && $$.isGaugeType(d.data) && !$$.hasMultiArcGauge()) {
@@ -161,7 +284,7 @@ export default {
 
 		pie($$.filterTargetsToShow())
 			.forEach((t, i) => {
-				if (!found && t.data.id === d.data.id) {
+				if (!found && t.data.id === d.data?.id) {
 					found = true;
 					d = t;
 					d.index = i;
@@ -191,34 +314,22 @@ export default {
 
 	getSvgArc(): Function {
 		const $$ = this;
-		const {state} = $$;
-		const singleArcWidth = state.gaugeArcWidth / $$.filterTargetsToShow($$.data.targets).length;
-		const hasMultiArcGauge = $$.hasMultiArcGauge();
+		const {inner, outer, corner} = getRadiusFn.call($$);
 
 		const arc = d3Arc()
-			.innerRadius((d: any) => {
-				const {innerRadius} = $$.getRadius(d);
+			.innerRadius(inner)
+			.outerRadius(outer);
 
-				return hasMultiArcGauge ?
-					state.radius - singleArcWidth * (d.index + 1) :
-					isNumber(innerRadius) ? innerRadius : 0;
-			})
-			.outerRadius((d: any) => {
-				const {outerRadius} = $$.getRadius(d);
-
-				return hasMultiArcGauge ? (state.radius - singleArcWidth * d.index) : outerRadius;
-			});
-
-		const newArc = function(d, withoutUpdate) {
+		const newArc = function(d: IArcData, withoutUpdate) {
 			let path: string | null = "M 0 0";
 
 			if (d.value || d.data) {
-				const updated = !withoutUpdate && $$.updateAngle(d);
+				const data = withoutUpdate ? d : $$.updateAngle(d) ?? null;
 
-				if (withoutUpdate) {
-					path = arc(d);
-				} else if (updated) {
-					path = arc(updated);
+				if (data) {
+					path = arc.cornerRadius(
+						corner(data, outer(data))
+					)(data);
 				}
 			}
 
@@ -231,44 +342,30 @@ export default {
 		return newArc;
 	},
 
-	getSvgArcExpanded(rate?: number): Function {
+	/**
+	 * Get expanded arc path function
+	 * @param {number} rate Expand rate
+	 * @returns {Function} Expanded arc path getter function
+	 * @private
+	 */
+	getSvgArcExpanded(rate = 1): (d: IArcData) => string {
 		const $$ = this;
-		const {state} = $$;
-		const newRate = rate || 1;
-		const singleArcWidth = state.gaugeArcWidth / $$.filterTargetsToShow($$.data.targets).length;
-		const hasMultiArcGauge = $$.hasMultiArcGauge();
-		const expandWidth = Math.min(state.radiusExpanded * newRate - state.radius,
-			singleArcWidth * 0.8 - (1 - newRate) * 100
-		);
+		const {inner, outer, corner} = getRadiusFn.call($$, rate);
 
 		const arc = d3Arc()
-			.innerRadius((d: any) => (
-				hasMultiArcGauge ?
-					state.radius - singleArcWidth * (d.index + 1) : $$.getRadius(d).innerRadius
-			))
-			.outerRadius((d: any) => {
-				let radius: number;
+			.innerRadius(inner)
+			.outerRadius(outer);
 
-				if (hasMultiArcGauge) {
-					radius = state.radius - singleArcWidth * d.index + expandWidth;
-				} else {
-					const {outerRadius} = $$.getRadius(d);
-					let {radiusExpanded} = state;
-
-					if (state.radius !== outerRadius) {
-						radiusExpanded -= Math.abs(state.radius - outerRadius);
-					}
-
-					radius = radiusExpanded * newRate;
-				}
-
-				return radius;
-			});
-
-		return function(d) {
+		return (d: IArcData): string => {
 			const updated = $$.updateAngle(d);
+			const outerR = outer(updated);
+			let cornerR = 0;
 
-			return updated ? arc(updated) : "M 0 0";
+			if (updated) {
+				cornerR = corner(updated, outerR);
+			}
+
+			return updated ? <string>arc.cornerRadius(cornerR)(updated) : "M 0 0";
 		};
 	},
 
@@ -276,7 +373,13 @@ export default {
 		return force || this.isArcType(d.data) ? this.svgArc(d, withoutUpdate) : "M 0 0";
 	},
 
-	transformForArcLabel(d): string {
+	/**
+	 * Set transform attributes to arc label text
+	 * @param {object} d Data object
+	 * @returns {string} Translate attribute string
+	 * @private
+	 */
+	transformForArcLabel(d: IArcData): string {
 		const $$ = this;
 		const {config, state: {radiusExpanded}} = $$;
 
@@ -292,13 +395,19 @@ export default {
 
 				translate = `translate(${x},${y})`;
 			} else if (!$$.hasType("gauge") || $$.data.targets.length > 1) {
-				const {outerRadius} = $$.getRadius(d);
+				let {outerRadius} = $$.getRadius(d);
+
+				if ($$.hasType("polar")) {
+					outerRadius = $$.getPolarOuterRadius(d, outerRadius);
+				}
+
 				const c = this.svgArc.centroid(updated);
 				const [x, y] = c.map(v => (isNaN(v) ? 0 : v));
 				const h = Math.sqrt(x * x + y * y);
 
-				let ratio = ($$.hasType("donut") && config.donut_label_ratio) ||
-					($$.hasType("pie") && config.pie_label_ratio);
+				let ratio = ["donut", "pie", "polar"]
+					.filter($$.hasType.bind($$))
+					.map(v => config[`${v}_label_ratio`])?.[0];
 
 				if (ratio) {
 					ratio = isFunction(ratio) ? ratio.bind($$.api)(d, outerRadius, h) : ratio;
@@ -315,9 +424,9 @@ export default {
 		return translate;
 	},
 
-	convertToArcData(d): object {
+	convertToArcData(d: IArcData | IArcDataRow): object {
 		return this.addName({
-			id: d.data ? d.data.id : d.id,
+			id: "data" in d ? d.data.id : d.id,
 			value: d.value,
 			ratio: this.getRatio("arc", d),
 			index: d.index,
@@ -337,7 +446,7 @@ export default {
 					const updated = $$.updateAngle(d);
 					const ratio = $$.getRatio("arc", updated);
 					const isUnderThreshold = $$.meetsLabelThreshold(ratio,
-						($$.hasType("donut") && "donut") || ($$.hasType("gauge") && "gauge") || ($$.hasType("pie") && "pie")
+						["donut", "gauge", "pie", "polar"].filter($$.hasType.bind($$))?.[0]
 					);
 
 					if (isUnderThreshold) {
@@ -364,7 +473,7 @@ export default {
 				if (!transiting) {
 					clearInterval(interval);
 
-					$el.legend.selectAll(`.${CLASS.legendItemFocused}`).size() > 0 &&
+					$el.legend.selectAll(`.${$FOCUS.legendItemFocused}`).size() > 0 &&
 						$$.expandArc(targetIds);
 				}
 			}, 10);
@@ -374,7 +483,7 @@ export default {
 
 		const newTargetIds = $$.mapToTargetIds(targetIds);
 
-		$el.svg.selectAll($$.selectorTargets(newTargetIds, `.${CLASS.chartArc}`))
+		$el.svg.selectAll($$.selectorTargets(newTargetIds, `.${$ARC.chartArc}`))
 			.each(function(d) {
 				if (!$$.shouldExpand(d.data.id)) {
 					return;
@@ -386,10 +495,10 @@ export default {
 				d3Select(this).selectAll("path")
 					.transition()
 					.duration(expandDuration)
-					.attr("d", $$.svgArcExpanded)
+					.attrTween("d", getAttrTweenFn($$.svgArcExpanded.bind($$)))
 					.transition()
 					.duration(expandDuration * 2)
-					.attr("d", svgArcExpandedSub);
+					.attrTween("d", getAttrTweenFn(svgArcExpandedSub.bind($$)));
 			});
 	},
 
@@ -403,13 +512,13 @@ export default {
 
 		const newTargetIds = $$.mapToTargetIds(targetIds);
 
-		svg.selectAll($$.selectorTargets(newTargetIds, `.${CLASS.chartArc}`))
+		svg.selectAll($$.selectorTargets(newTargetIds, `.${$ARC.chartArc}`))
 			.selectAll("path")
 			.transition()
 			.duration(d => $$.getExpandConfig(d.data.id, "duration"))
-			.attr("d", $$.svgArc);
+			.attrTween("d", getAttrTweenFn($$.svgArc.bind($$)));
 
-		svg.selectAll(`${CLASS.arc}`)
+		svg.selectAll(`${$ARC.arc}`)
 			.style("opacity", null);
 	},
 
@@ -453,29 +562,22 @@ export default {
 		const $$ = this;
 		const {config} = $$;
 
-		return ["pie", "donut", "gauge"]
+		return ["donut", "gauge", "pie", "polar"]
 			.some(v => $$.hasType(v) && config[`${v}_label_show`]);
 	},
 
 	getArcLabelFormat(): number | string {
 		const $$ = this;
 		const {config} = $$;
-		let format = config.pie_label_format;
+		let format = v => v;
 
-		if ($$.hasType("gauge")) {
-			format = config.gauge_label_format;
-		} else if ($$.hasType("donut")) {
-			format = config.donut_label_format;
-		}
+		["donut", "gauge", "pie", "polar"]
+			.filter($$.hasType.bind($$))
+			.forEach(v => {
+				format = config[`${v}_label_format`];
+			});
 
 		return isFunction(format) ? format.bind($$.api) : format;
-	},
-
-	getArcTitle(): string {
-		const $$ = this;
-		const type = ($$.hasType("donut") && "donut") || ($$.hasType("gauge") && "gauge");
-
-		return type ? $$.config[`${type}_title`] : "";
 	},
 
 	updateTargetsForArc(targets: IData): void {
@@ -485,15 +587,16 @@ export default {
 		const classChartArc = $$.getChartClass("Arc");
 		const classArcs = $$.getClass("arcs", true);
 		const classFocus = $$.classFocus.bind($$);
-		const chartArcs = $el.main.select(`.${CLASS.chartArcs}`);
+		const chartArcs = $el.main.select(`.${$ARC.chartArcs}`);
 
 		const mainPieUpdate = chartArcs
-			.selectAll(`.${CLASS.chartArc}`)
+			.selectAll(`.${$ARC.chartArc}`)
 			.data($$.pie(targets))
 			.attr("class", d => classChartArc(d) + classFocus(d.data));
 
 		const mainPieEnter = mainPieUpdate.enter().append("g")
-			.attr("class", classChartArc);
+			.attr("class", classChartArc)
+			.call(this.setCssRule(false, `.${$ARC.chartArcs} text`, ["pointer-events:none", "text-anchor:middle"]));
 
 		mainPieEnter.append("g")
 			.attr("class", classArcs)
@@ -502,10 +605,10 @@ export default {
 		mainPieEnter.append("text")
 			.attr("dy", hasGauge && !$$.hasMultiTargets() ? "-.1em" : ".35em")
 			.style("opacity", "0")
-			.style("text-anchor", "middle")
-			.style("pointer-events", "none");
+			.style("text-anchor", $$.getStylePropValue("middle"))
+			.style("pointer-events", $$.getStylePropValue("none"));
 
-		$el.text = chartArcs.selectAll(`.${CLASS.target} text`);
+		$el.text = chartArcs.selectAll(`.${$COMMON.target} text`);
 		// MEMO: can not keep same color..., but not bad to update color in redraw
 		// mainPieUpdate.exit().remove();
 	},
@@ -514,9 +617,9 @@ export default {
 		const $$ = this;
 		const {$el} = $$;
 
-		$el.arcs = $el.main.select(`.${CLASS.chart}`)
+		$el.arcs = $el.main.select(`.${$COMMON.chart}`)
 			.append("g")
-			.attr("class", CLASS.chartArcs)
+			.attr("class", $ARC.chartArcs)
 			.attr("transform", $$.getTranslate("arc"));
 
 		$$.setArcTitle();
@@ -524,22 +627,65 @@ export default {
 
 	/**
 	 * Set arc title text
+	 * @param {string} str Title text
 	 * @private
 	 */
-	setArcTitle() {
+	setArcTitle(str?: string) {
 		const $$ = this;
-		const title = $$.getArcTitle();
+		const title = str || $$.getArcTitle();
 		const hasGauge = $$.hasType("gauge");
 
 		if (title) {
-			const text = $$.$el.arcs.append("text")
-				.attr("class", CLASS[hasGauge ? "chartArcsGaugeTitle" : "chartArcsTitle"])
-				.style("text-anchor", "middle");
+			const className = hasGauge ? $GAUGE.chartArcsGaugeTitle : $ARC.chartArcsTitle;
+			let text = $$.$el.arcs.select(`.${className}`);
+
+			if (text.empty()) {
+				text = $$.$el.arcs.append("text")
+					.attr("class", className)
+					.style("text-anchor", "middle");
+			}
 
 			hasGauge && text.attr("dy", "-0.3em");
 
 			setTextValue(text, title, hasGauge ? undefined : [-0.6, 1.35], true);
 		}
+	},
+
+	/**
+	 * Return arc title text
+	 * @returns {string} Arc title text
+	 * @private
+	 */
+	getArcTitle(): string {
+		const $$ = this;
+		const type = ($$.hasType("donut") && "donut") || ($$.hasType("gauge") && "gauge");
+
+		return type ? $$.config[`${type}_title`] : "";
+	},
+
+	/**
+	 * Get arc title text with needle value
+	 * @returns {string|boolean} When title contains needle template string will return processed string, otherwise false
+	 * @private
+	 */
+	getArcTitleWithNeedleValue(): string | false {
+		const $$ = this;
+		const {config, state} = $$;
+		const title = $$.getArcTitle();
+
+		if (title && $$.config.arc_needle_show && /{=[A-Z_]+}/.test(title)) {
+			let value = state.current.needle;
+
+			if (!isNumber(value)) {
+				value = config.arc_needle_value;
+			}
+
+			return tplProcess(title, {
+				NEEDLE_VALUE: isNumber(value) ? value : 0
+			});
+		}
+
+		return false;
 	},
 
 	redrawArc(duration: number, durationForExit: number, withTransform?: boolean): void {
@@ -548,8 +694,8 @@ export default {
 		const hasInteraction = config.interaction_enabled;
 		const isSelectable = hasInteraction && config.data_selection_isselectable;
 
-		let mainArc = main.selectAll(`.${CLASS.arcs}`)
-			.selectAll(`.${CLASS.arc}`)
+		let mainArc = main.selectAll(`.${$ARC.arcs}`)
+			.selectAll(`.${$ARC.arc}`)
 			.data($$.arcData.bind($$));
 
 		mainArc.exit()
@@ -558,7 +704,8 @@ export default {
 			.style("opacity", "0")
 			.remove();
 
-		mainArc = mainArc.enter().append("path")
+		mainArc = mainArc.enter()
+			.append("path")
 			.attr("class", $$.getClass("arc", true))
 			.style("fill", d => $$.color(d.data))
 			.style("cursor", d => (isSelectable?.bind?.($$.api)(d) ? "pointer" : null))
@@ -611,6 +758,7 @@ export default {
 					const interpolated = interpolate(t);
 
 					interpolated.data = d.data; // data.id will be updated by interporator
+
 					return $$.getArc(interpolated, true);
 				};
 			})
@@ -634,7 +782,7 @@ export default {
 			.call(endall, function() {
 				if ($$.levelColor) {
 					const path = d3Select(this);
-					const d: any = path.datum();
+					const d: any = path.datum(this._current);
 
 					$$.updateLegendItemColor(d.data.id, path.style("fill"));
 				}
@@ -646,9 +794,117 @@ export default {
 		// bind arc events
 		hasInteraction && $$.bindArcEvent(mainArc);
 
+		$$.hasType("polar") && $$.redrawPolar();
 		$$.hasType("gauge") && $$.redrawBackgroundArcs();
 
+		config.arc_needle_show && $$.redrawNeedle();
 		$$.redrawArcText(duration);
+	},
+
+	/**
+	 * Update needle element
+	 * @private
+	 */
+	redrawNeedle(): void {
+		const $$ = this;
+		const {$el, config, state: {hiddenTargetIds, radius}} = $$;
+		const length = (radius - 1) / 100 * config.arc_needle_length;
+		const hasDataToShow = hiddenTargetIds.length !== $$.data.targets.length;
+		let needle = $$.$el.arcs.select(`.${$ARC.needle}`);
+
+		// needle options
+		const pathFn = config.arc_needle_path;
+		const baseWidth = config.arc_needle_bottom_width / 2;
+		const topWidth = config.arc_needle_top_width / 2;
+		const topRx = config.arc_needle_top_rx;
+		const topRy = config.arc_needle_top_ry;
+		const bottomLen = config.arc_needle_bottom_len;
+		const bottomRx = config.arc_needle_bottom_rx;
+		const bottomRy = config.arc_needle_bottom_ry;
+		const needleAngle = $$.getNeedleAngle();
+
+		const updateNeedleValue = () => {
+			const title = $$.getArcTitleWithNeedleValue();
+
+			title && $$.setArcTitle(title);
+		};
+
+		updateNeedleValue();
+
+		if (needle.empty()) {
+			needle = $el.arcs
+				.append("path")
+				.classed($ARC.needle, true);
+
+			$el.needle = needle;
+
+			/**
+			 * Function to be exposed as public to facilitate updating needle
+			 * @param {number} v Value to be updated
+			 * @param {boolean} updateConfig Weather update config's value
+			 * @private
+			 */
+			$el.needle.updateHelper = (v: number, updateConfig = false): void => {
+				if ($el.needle.style("display") !== "none") {
+					$$.$T($el.needle)
+						.style("transform", `rotate(${$$.getNeedleAngle(v)}deg)`)
+						.call(endall, () => {
+							updateConfig && (config.arc_needle_value = v);
+							updateNeedleValue();
+						});
+				}
+			};
+		}
+
+		if (hasDataToShow) {
+			const path = isFunction(pathFn) ?
+				pathFn.call($$, length) :
+				`M-${baseWidth} ${bottomLen} A${bottomRx} ${bottomRy} 0 0 0 ${baseWidth} ${bottomLen} L${topWidth} -${length} A${topRx} ${topRy} 0 0 0 -${topWidth} -${length} L-${baseWidth} ${bottomLen} Z`;
+
+			$$.$T(needle)
+				.attr("d", path)
+				.style("fill", config.arc_needle_color)
+				.style("display", null)
+				.style("transform", `rotate(${needleAngle}deg)`);
+		} else {
+			needle.style("display", "none");
+		}
+	},
+
+	/**
+	 * Get needle angle value relative given value
+	 * @param {number} v Value to be calculated angle
+	 * @returns {number} angle value
+	 * @private
+	 */
+	getNeedleAngle(v?: number): number {
+		const $$ = this;
+		const {config, state} = $$;
+		const arcLength = $$.getArcLength();
+		const hasGauge = $$.hasType("gauge");
+		const total = $$.getTotalDataSum(true);
+		let value = isDefined(v) ? v : config.arc_needle_value;
+		let startingAngle = config[`${config.data_type}_startingAngle`] || 0;
+		let radian = 0;
+
+		if (!isNumber(value)) {
+			value = hasGauge && $$.data.targets.length === 1 ? total : 0;
+		}
+
+		state.current.needle = value;
+
+		if (hasGauge) {
+			startingAngle = $$.getGaugeStartAngle();
+
+			const radius = config.gauge_fullCircle ? arcLength : startingAngle * -2;
+			const {gauge_min: min, gauge_max: max} = config;
+
+			radian = radius * ((value - min) / (max - min));
+		} else {
+			radian = arcLength * (value / total);
+		}
+
+		return (startingAngle + radian) * (180 / Math.PI);
 	},
 
 	redrawBackgroundArcs() {
@@ -656,28 +912,30 @@ export default {
 		const {config, state} = $$;
 		const hasMultiArcGauge = $$.hasMultiArcGauge();
 		const isFullCircle = config.gauge_fullCircle;
+		const showEmptyTextLabel = $$.filterTargetsToShow($$.data.targets).length === 0 &&
+			!!config.data_empty_label_text;
 
-		const startAngle = $$.getStartAngle();
+		const startAngle = $$.getGaugeStartAngle();
 		const endAngle = isFullCircle ? startAngle + $$.getArcLength() : startAngle * -1;
 
 		let backgroundArc = $$.$el.arcs.select(
-			`${hasMultiArcGauge ? "g" : ""}.${CLASS.chartArcsBackground}`
+			`${hasMultiArcGauge ? "g" : ""}.${$ARC.chartArcsBackground}`
 		);
 
 		if (hasMultiArcGauge) {
 			let index = 0;
 
 			backgroundArc = backgroundArc
-				.selectAll(`path.${CLASS.chartArcsBackground}`)
+				.selectAll(`path.${$ARC.chartArcsBackground}`)
 				.data($$.data.targets);
 
 			backgroundArc.enter()
 				.append("path")
-				.attr("class", (d, i) => `${CLASS.chartArcsBackground} ${CLASS.chartArcsBackground}-${i}`)
+				.attr("class", (d, i) => `${$ARC.chartArcsBackground} ${$ARC.chartArcsBackground}-${i}`)
 				.merge(backgroundArc)
 				.style("fill", (config.gauge_background) || null)
 				.attr("d", ({id}) => {
-					if (state.hiddenTargetIds.indexOf(id) >= 0) {
+					if (showEmptyTextLabel || state.hiddenTargetIds.indexOf(id) >= 0) {
 						return "M 0 0";
 					}
 
@@ -693,7 +951,7 @@ export default {
 
 			backgroundArc.exit().remove();
 		} else {
-			backgroundArc.attr("d", () => {
+			backgroundArc.attr("d", showEmptyTextLabel ? "M 0 0" : () => {
 				const d = {
 					data: [{value: config.gauge_max}],
 					startAngle,
@@ -783,8 +1041,8 @@ export default {
 		// touch events
 		if (isTouch && $$.hasArcType() && !$$.radars) {
 			const getEventArc = event => {
-				const touch = event.changedTouches[0];
-				const eventArc = d3Select(document.elementFromPoint(touch.clientX, touch.clientY));
+				const {clientX, clientY} = event.changedTouches?.[0] ?? {clientX: 0, clientY: 0};
+				const eventArc = d3Select(document.elementFromPoint(clientX, clientY));
 
 				return eventArc;
 			};
@@ -794,6 +1052,8 @@ export default {
 					if (state.transiting) { // skip while transiting
 						return;
 					}
+
+					state.event = event;
 
 					const eventArc = getEventArc(event);
 					const datum: any = eventArc.datum();
@@ -818,10 +1078,10 @@ export default {
 
 		// for gauge type, update text when has no title & multi data
 		if (!(hasGauge && $$.data.targets.length === 1 && config.gauge_title)) {
-			text = main.selectAll(`.${CLASS.chartArc}`)
+			text = main.selectAll(`.${$ARC.chartArc}`)
 				.select("text")
 				.style("opacity", "0")
-				.attr("class", d => ($$.isGaugeType(d.data) ? CLASS.gaugeValue : null))
+				.attr("class", d => ($$.isGaugeType(d.data) ? $GAUGE.gaugeValue : null))
 				.call($$.textForArcLabel.bind($$))
 				.attr("transform", $$.transformForArcLabel.bind($$))
 				.style("font-size", d => (
@@ -835,7 +1095,7 @@ export default {
 			hasMultiArcGauge && text.attr("dy", "-.1em");
 		}
 
-		main.select(`.${CLASS.chartArcsTitle}`)
+		main.select(`.${$ARC.chartArcsTitle}`)
 			.style("opacity", $$.hasType("donut") || hasGauge ? null : "0");
 
 		if (hasGauge) {
@@ -844,21 +1104,38 @@ export default {
 			isFullCircle && text?.attr("dy", `${hasMultiArcGauge ? 0 : Math.round(state.radius / 14)}`);
 
 			if (config.gauge_label_show) {
-				arcs.select(`.${CLASS.chartArcsGaugeUnit}`)
+				arcs.select(`.${$GAUGE.chartArcsGaugeUnit}`)
 					.attr("dy", `${isFullCircle ? 1.5 : 0.75}em`)
 					.text(config.gauge_units);
 
-				arcs.select(`.${CLASS.chartArcsGaugeMin}`)
+				arcs.select(`.${$GAUGE.chartArcsGaugeMin}`)
 					.attr("dx", `${-1 * (state.innerRadius + ((state.radius - state.innerRadius) / (isFullCircle ? 1 : 2)))}px`)
 					.attr("dy", "1.2em")
 					.text($$.textForGaugeMinMax(config.gauge_min, false));
 
 				// show max text when isn't fullCircle
-				!isFullCircle && arcs.select(`.${CLASS.chartArcsGaugeMax}`)
+				!isFullCircle && arcs.select(`.${$GAUGE.chartArcsGaugeMax}`)
 					.attr("dx", `${state.innerRadius + ((state.radius - state.innerRadius) / 2)}px`)
 					.attr("dy", "1.2em")
 					.text($$.textForGaugeMinMax(config.gauge_max, true));
 			}
 		}
+	},
+
+	/**
+	 * Get Arc element by id or index
+	 * @param {string|number} value id or index of Arc
+	 * @returns {d3Selection} Arc path element
+	 * @private
+	 */
+	getArcElementByIdOrIndex(value: string | number): d3Selection {
+		const $$ = this;
+		const {$el: {arcs}} = $$;
+		const filterFn = isNumber(value) ?
+			d => d.index === value :
+			d => d.data.id === value;
+
+		return arcs?.selectAll(`.${$COMMON.target} path`)
+			.filter(filterFn);
 	}
 };

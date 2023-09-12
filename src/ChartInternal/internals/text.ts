@@ -7,10 +7,105 @@ import {
 	selectAll as d3SelectAll
 } from "d3-selection";
 import {KEY} from "../../module/Cache";
-import CLASS from "../../config/classes";
+import {$COMMON, $TEXT} from "../../config/classes";
 import {capitalize, getBoundingRect, getRandom, isFunction, isNumber, isObject, isString, getTranslation, setTextValue} from "../../module/util";
-import {IDataRow, IArcData} from "../data/IData";
-import {AxisType} from "../../../types/types";
+import type {IDataRow, IArcData} from "../data/IData";
+import type {AxisType} from "../../../types/types";
+
+type Coord = {x: number, y: number};
+type Anchor = "start" | "middle" | "end";
+
+/**
+ * Get text-anchor according text.labels.rotate angle
+ * @param {number} angle Angle value
+ * @returns {string} Anchor string value
+ * @private
+ */
+function getRotateAnchor(angle: number): Anchor {
+	let anchor: Anchor = "middle";
+
+	if (angle > 0 && angle <= 170) {
+		anchor = "end";
+	} else if (angle > 190 && angle <= 360) {
+		anchor = "start";
+	}
+
+	return anchor;
+}
+
+/**
+ * Set rotated position coordinate according text.labels.rotate angle
+ * @param {object} d Data object
+ * @param {object} pos Position object
+ * @param {object} pos.x x coordinate
+ * @param {object} pos.y y coordinate
+ * @param {string} anchor string value
+ * @param {boolean} isRotated If axis is rotated
+ * @param {boolean} isInverted If axis is inverted
+ * @returns {object} x, y coordinate
+ * @private
+ */
+function setRotatePos(
+	d: IDataRow, pos: Coord, anchor: Anchor, isRotated: boolean, isInverted: boolean
+): Coord {
+	const $$ = this;
+	const {value} = d;
+	const isCandlestickType = $$.isCandlestickType(d);
+	const isNegative = (isNumber(value) && value < 0) || (
+		isCandlestickType && !$$.getCandlestickData(d)?._isUp
+	);
+
+	let {x, y} = pos;
+	const gap = 4;
+	const doubleGap = gap * 2;
+
+	if (isRotated) {
+		if (anchor === "start") {
+			x += isNegative ? 0 : doubleGap;
+			y += gap;
+		} else if (anchor === "middle") {
+			x += doubleGap;
+			y -= doubleGap;
+		} else if (anchor === "end") {
+			isNegative && (x -= doubleGap);
+			y += gap;
+		}
+	} else {
+		if (anchor === "start") {
+			x += gap;
+			isNegative && (y += doubleGap * 2);
+		} else if (anchor === "middle") {
+			y -= doubleGap;
+		} else if (anchor === "end") {
+			x -= gap;
+			isNegative && (y += doubleGap * 2);
+		}
+
+		if (isInverted) {
+			y += isNegative ? -17 : (isCandlestickType ? 13 : 7);
+		}
+	}
+
+	return {x, y};
+}
+
+/**
+ * Get data.labels.position value
+ * @param {object} d Data object
+ * @param {string} type x | y
+ * @returns {number} Position value
+ * @private
+ */
+function getTextPos(d, type): number {
+	const position = this.config.data_labels_position;
+	const {id, index, value} = d;
+
+	return (
+		isFunction(position) ?
+			position.bind(this.api)(type, value, id, index, this.$el.text) :
+			(id in position ? position[id] : position)[type]
+	) ?? 0;
+}
 
 export default {
 	opacityForText(d): null | "0" {
@@ -28,8 +123,9 @@ export default {
 	initText(): void {
 		const {$el} = this;
 
-		$el.main.select(`.${CLASS.chart}`).append("g")
-			.attr("class", CLASS.chartTexts);
+		$el.main.select(`.${$COMMON.chart}`).append("g")
+			.attr("class", $TEXT.chartTexts)
+			.style("pointer-events", $el.treemap ? "none" : null);
 	},
 
 	/**
@@ -43,14 +139,15 @@ export default {
 		const classTexts = $$.getClass("texts", "id");
 
 		const classFocus = $$.classFocus.bind($$);
-		const mainTextUpdate = $$.$el.main.select(`.${CLASS.chartTexts}`).selectAll(`.${CLASS.chartText}`)
+		const mainTextUpdate = $$.$el.main.select(`.${$TEXT.chartTexts}`)
+			.selectAll(`.${$TEXT.chartText}`)
 			.data(targets)
-			.attr("class", d => classChartText(d) + classFocus(d));
+			.attr("class", d => `${classChartText(d)}${classFocus(d)}`.trim());
 
 		const mainTextEnter = mainTextUpdate.enter().append("g")
 			.style("opacity", "0")
 			.attr("class", classChartText)
-			.style("pointer-events", "none");
+			.call($$.setCssRule(true, ` .${$TEXT.text}`, ["fill", "pointer-events:none"], $$.updateTextColor));
 
 		mainTextEnter.append("g")
 			.attr("class", classTexts);
@@ -62,11 +159,12 @@ export default {
 	 */
 	updateText(): void {
 		const $$ = this;
-		const {$el, $T, config} = $$;
+		const {$el, $T, config, axis} = $$;
 		const classText = $$.getClass("text", "index");
+		const labelsCentered = config.data_labels.centered;
 
-		const text = $el.main.selectAll(`.${CLASS.texts}`)
-			.selectAll(`.${CLASS.text}`)
+		const text = $el.main.selectAll(`.${$TEXT.texts}`)
+			.selectAll(`.${$TEXT.text}`)
 			.data($$.labelishData.bind($$));
 
 		$T(text.exit())
@@ -78,18 +176,22 @@ export default {
 			.merge(text)
 			.attr("class", classText)
 			.attr("text-anchor", d => {
+				const isInverted = config[`axis_${axis?.getId(d.id)}_inverted`];
+
 				// when value is negative or
-				let isEndAnchor = d.value < 0;
+				let isEndAnchor = isInverted ? d.value > 0 : d.value < 0;
 
 				if ($$.isCandlestickType(d)) {
 					const data = $$.getCandlestickData(d);
 
 					isEndAnchor = !data?._isUp;
+				} else if ($$.isTreemapType(d)) {
+					return labelsCentered ? "middle" : "start";
 				}
 
 				return (config.axis_rotated ? (isEndAnchor ? "end" : "start") : "middle");
 			})
-			.style("fill", $$.updateTextColor.bind($$))
+			.style("fill", $$.getStylePropValue($$.updateTextColor))
 			.style("fill-opacity", "0")
 			.each(function(d, i, texts) {
 				const node = d3Select(this);
@@ -105,7 +207,8 @@ export default {
 					}
 				}
 
-				value = $$.dataLabelFormat(d.id)(value, d.id, i, texts);
+				value = $$.isTreemapType(d) ? $$.treemapDataLabelFormat(d)(node) :
+					$$.dataLabelFormat(d.id)(value, d.id, i, texts);
 
 				if (isNumber(value)) {
 					this.textContent = value;
@@ -119,7 +222,8 @@ export default {
 		const $$ = this;
 		const {config} = $$;
 		const labelColors = config.data_labels_colors;
-		const defaultColor = $$.isArcType(d) && !$$.isRadarType(d) ? null : $$.color(d);
+		const defaultColor = ($$.isArcType(d) && !$$.isRadarType(d)) || $$.isTreemapType(d) ?
+			null : $$.color(d);
 		let color;
 
 		if (isString(labelColors)) {
@@ -171,34 +275,45 @@ export default {
 
 	/**
 	 * Redraw chartText
-	 * @param {Function} x Positioning function for x
-	 * @param {Function} y Positioning function for y
+	 * @param {Function} getX Positioning function for x
+	 * @param {Function} getY Positioning function for y
 	 * @param {boolean} forFlow Weather is flow
 	 * @param {boolean} withTransition transition is enabled
 	 * @returns {Array}
 	 * @private
 	 */
-	redrawText(x, y, forFlow?: boolean, withTransition?: boolean): true {
+	redrawText(getX, getY, forFlow?: boolean, withTransition?: boolean): true {
 		const $$ = this;
-		const {$T} = $$;
+		const {$T, axis, config, state: {hasTreemap}} = $$;
 		const t = <string>getRandom(true);
+		const isRotated = config.axis_rotated;
+		const angle = config.data_labels.rotate;
+		const anchorString = getRotateAnchor(angle);
+		const rotateString = angle ? `rotate(${angle})` : "";
 
 		$$.$el.text
-			.style("fill", $$.updateTextColor.bind($$))
+			.style("fill", $$.getStylePropValue($$.updateTextColor))
 			.attr("filter", $$.updateTextBacgroundColor.bind($$))
 			.style("fill-opacity", forFlow ? 0 : $$.opacityForText.bind($$))
-			.each(function(d, i) {
+			.each(function(d: IDataRow, i: number) {
 				// do not apply transition for newly added text elements
-				const node = $T(this, !!(withTransition && this.getAttribute("x")), t);
+				const node = $T(hasTreemap && this.childElementCount ? this.parentNode : this, !!(withTransition && this.getAttribute("x")), t);
+				const isInverted = config[`axis_${axis?.getId(d.id)}_inverted`];
+				let pos = {
+					x: getX.bind(this)(d, i),
+					y: getY.bind(this)(d, i)
+				};
 
-				const posX = x.bind(this)(d, i);
-				const posY = y.bind(this)(d, i);
+				if (angle) {
+					pos = setRotatePos.bind($$)(d, pos, anchorString, isRotated, isInverted);
+					node.attr("text-anchor", anchorString);
+				}
 
 				// when is multiline
-				if (this.childElementCount) {
-					node.attr("transform", `translate(${posX} ${posY})`);
+				if (this.childElementCount || angle) {
+					node.attr("transform", `translate(${pos.x} ${pos.y}) ${rotateString}`);
 				} else {
-					node.attr("x", posX).attr("y", posY);
+					node.attr("x", pos.x).attr("y", pos.y);
 				}
 			});
 
@@ -252,11 +367,13 @@ export default {
 	 */
 	generateXYForText(indices, forX?: boolean): (d, i) => number {
 		const $$ = this;
+		const {state: {hasRadar, hasTreemap}} = $$;
 		const types = Object.keys(indices);
 		const points = {};
 		const getter = forX ? $$.getXForText : $$.getYForText;
 
-		$$.hasType("radar") && types.push("radar");
+		hasRadar && types.push("radar");
+		hasTreemap && types.push("treemap");
 
 		types.forEach(v => {
 			points[v] = $$[`generateGet${capitalize(v)}Points`](indices[v], false);
@@ -266,7 +383,8 @@ export default {
 			const type = ($$.isAreaType(d) && "area") ||
 				($$.isBarType(d) && "bar") ||
 				($$.isCandlestickType(d) && "candlestick") ||
-				($$.isRadarType(d) && "radar") || "line";
+				($$.isRadarType(d) && "radar") ||
+				($$.isTreemapType(d) && "treemap") || "line";
 
 			return getter.call($$, points[type](d, i), d, this);
 		};
@@ -277,51 +395,48 @@ export default {
 	 * @param {object} d Data object
 	 * @param {Array} points Data points position
 	 * @param {HTMLElement} textElement Data label text element
+	 * @param {string} type 'x' or 'y'
 	 * @returns {number} Position value
 	 * @private
 	 */
-	getCenteredTextPos(d, points, textElement): number {
+	getCenteredTextPos(d, points, textElement, type: "x" | "y"): number {
 		const $$ = this;
 		const {config} = $$;
 		const isRotated = config.axis_rotated;
+		const isBarType = $$.isBarType(d);
+		const isTreemapType = $$.isTreemapType(d);
 
-		if (config.data_labels.centered && $$.isBarType(d)) {
+		if (config.data_labels.centered && (isBarType || isTreemapType)) {
 			const rect = getBoundingRect(textElement);
-			const isPositive = d.value >= 0;
 
-			if (isRotated) {
-				const w = (
-					isPositive ?
-						points[1][1] - points[0][1] :
-						points[0][1] - points[1][1]
-				) / 2 + (rect.width / 2);
+			if (isBarType) {
+				const isPositive = d.value >= 0;
 
-				return isPositive ? -w - 3 : w + 2;
-			} else {
-				const h = (
-					isPositive ?
-						points[0][1] - points[1][1] :
-						points[1][1] - points[0][1]
-				) / 2 + (rect.height / 2);
+				if (isRotated) {
+					const w = (
+						isPositive ?
+							points[1][1] - points[0][1] :
+							points[0][1] - points[1][1]
+					) / 2 + (rect.width / 2);
 
-				return isPositive ? h : -h - 2;
+					return isPositive ? -w - 3 : w + 2;
+				} else {
+					const h = (
+						isPositive ?
+							points[0][1] - points[1][1] :
+							points[1][1] - points[0][1]
+					) / 2 + (rect.height / 2);
+
+					return isPositive ? h : -h - 2;
+				}
+			} else if (isTreemapType) {
+				return type === "x" ?
+					(points[1][0] - points[0][0]) / 2 :
+					(points[1][1] - points[0][1]) / 2 + (rect.height / 2);
 			}
 		}
 
 		return 0;
-	},
-
-	/**
-	 * Get data.labels.position value
-	 * @param {string} id Data id value
-	 * @param {string} type x | y
-	 * @returns {number} Position value
-	 * @private
-	 */
-	getTextPos(id, type): number {
-		const pos = this.config.data_labels_position;
-
-		return (id in pos ? pos[id] : pos)[type] || 0;
 	},
 
 	/**
@@ -332,46 +447,45 @@ export default {
 	 * @returns {number} x coordinate
 	 * @private
 	 */
-	getXForText(points, d, textElement): number {
+	getXForText(points, d: IDataRow, textElement): number {
 		const $$ = this;
-		const {config, state} = $$;
+		const {config} = $$;
 		const isRotated = config.axis_rotated;
+		const isTreemapType = $$.isTreemapType(d);
 		let xPos = points[0][0];
 
-
-		if ($$.hasType("candlestick")) {
+		if ($$.isCandlestickType(d)) {
 			if (isRotated) {
-				xPos = $$.getCandlestickData(d)._isUp ?
+				xPos = $$.getCandlestickData(d)?._isUp ?
 					points[2][2] + 4 : points[2][1] - 4;
 			} else {
 				xPos += (points[1][0] - xPos) / 2;
 			}
+		} else if (isTreemapType) {
+			xPos += config.data_labels.centered ? 0 : 5;
 		} else {
 			if (isRotated) {
+				const isInverted = config[`axis_${$$.axis.getId(d.id)}_inverted`];
 				const padding = $$.isBarType(d) ? 4 : 6;
+				const value = d.value as number;
 
-				xPos = points[2][1] + padding * (d.value < 0 ? -1 : 1);
+				xPos = points[2][1];
+
+				if (isInverted) {
+					xPos -= padding * (value > 0 ? 1 : -1);
+				} else {
+					xPos += padding * (value < 0 ? -1 : 1);
+				}
 			} else {
 				xPos = $$.hasType("bar") ? (points[2][0] + points[0][0]) / 2 : xPos;
 			}
 		}
 
-		// show labels regardless of the domain if value is null
-		if (d.value === null) {
-			if (xPos > state.width) {
-				const {width} = getBoundingRect(textElement);
-
-				xPos = state.width - width;
-			} else if (xPos < 0) {
-				xPos = 4;
-			}
+		if (isRotated || isTreemapType) {
+			xPos += $$.getCenteredTextPos(d, points, textElement, "x");
 		}
 
-		if (isRotated) {
-			xPos += $$.getCenteredTextPos(d, points, textElement);
-		}
-
-		return xPos + $$.getTextPos(d.id, "x");
+		return xPos + getTextPos.call(this, d, "x");
 	},
 
 	/**
@@ -384,8 +498,11 @@ export default {
 	 */
 	getYForText(points, d, textElement): number {
 		const $$ = this;
-		const {config, state} = $$;
+		const {axis, config, state} = $$;
 		const isRotated = config.axis_rotated;
+		const isInverted = config[`axis_${axis?.getId(d.id)}_inverted`];
+		const isBarType = $$.isBarType(d);
+		const isTreemapType = $$.isTreemapType(d);
 		const r = config.point_r;
 		const rect = getBoundingRect(textElement);
 		let {value} = d;
@@ -402,7 +519,13 @@ export default {
 				yPos = value && value._isUp ?
 					points[2][2] - baseY :
 					points[2][1] + (baseY * 4);
+
+				if (isInverted) {
+					yPos += 15 * (value._isUp ? 1 : -1);
+				}
 			}
+		} else if (isTreemapType) {
+			yPos = points[0][1] + (config.data_labels.centered ? 0 : rect.height + 5);
 		} else {
 			if (isRotated) {
 				yPos = (points[0][0] + points[2][0] + rect.height * 0.6) / 2;
@@ -414,14 +537,20 @@ export default {
 				}
 
 				if (value < 0 || (value === 0 && !state.hasPositiveValue && state.hasNegativeValue)) {
-					yPos += rect.height + ($$.isBarType(d) ? -baseY : baseY);
+					yPos += isInverted ? (isBarType ? -3 : -5) : (
+						rect.height + (isBarType ? -baseY : baseY)
+					);
 				} else {
 					let diff = -baseY * 2;
 
-					if ($$.isBarType(d)) {
+					if (isBarType) {
 						diff = -baseY;
 					} else if ($$.isBubbleType(d)) {
 						diff = baseY;
+					}
+
+					if (isInverted) {
+						diff = isBarType ? 10 : 15;
 					}
 
 					yPos += diff;
@@ -429,22 +558,11 @@ export default {
 			}
 		}
 
-		// show labels regardless of the domain if value is null
-		if (d.value === null && !isRotated) {
-			const boxHeight = rect.height;
-
-			if (yPos < boxHeight) {
-				yPos = boxHeight;
-			} else if (yPos > state.height) {
-				yPos = state.height - 4;
-			}
+		if (!isRotated || isTreemapType) {
+			yPos += $$.getCenteredTextPos(d, points, textElement, "y");
 		}
 
-		if (!isRotated) {
-			yPos += $$.getCenteredTextPos(d, points, textElement);
-		}
-
-		return yPos + $$.getTextPos(d.id, "y");
+		return yPos + getTextPos.call(this, d, "y");
 	},
 
 	/**
@@ -475,7 +593,7 @@ export default {
 			const overlapsY = Math.ceil(Math.abs(translate.f - coordinate.f)) <
 				parseInt(textNode.style("font-size"), 10);
 
-			filteredTextNode.classed(CLASS.TextOverlapping, overlapsX && overlapsY);
+			filteredTextNode.classed($TEXT.TextOverlapping, overlapsX && overlapsY);
 		});
 	},
 
@@ -490,7 +608,7 @@ export default {
 		$$.$el.arcs.selectAll(selector)
 			.each(function() {
 				d3SelectAll([this, this.previousSibling])
-					.classed(CLASS.TextOverlapping, false);
+					.classed($TEXT.TextOverlapping, false);
 			});
 	},
 
@@ -501,7 +619,7 @@ export default {
 	 * @returns {boolean}
 	 * @private
 	 */
-	meetsLabelThreshold(ratio: number = 0, type: "bar" | "donut" | "gauge" | "pie"): boolean {
+	meetsLabelThreshold(ratio: number = 0, type: "bar" | "donut" | "gauge" | "pie" | "polar" | "treemap"): boolean {
 		const $$ = this;
 		const {config} = $$;
 		const threshold = config[`${type}_label_threshold`] || 0;

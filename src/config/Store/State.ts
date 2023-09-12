@@ -40,8 +40,15 @@ export default class State {
 
 			hasAxis: false,
 			hasRadar: false,
+			hasTreemap: false,
+
+			// for data CSS rule index (used when boost.useCssRule is true)
+			cssRule: {},
 
 			current: {
+				// current domain value. Assigned when is zoom is called
+				domain: undefined,
+
 				// chart whole dimension
 				width: 0,
 				height: 0,
@@ -55,6 +62,7 @@ export default class State {
 
 				// current used chart type list
 				types: <string[]> [],
+				needle: undefined, // arc needle current value
 			},
 
 			// legend
@@ -107,7 +115,7 @@ export default class State {
 				pathGrid: ""
 			},
 
-			// status
+			// state
 			event: null, // event object
 			dragStart: null,
 			dragging: false,
@@ -124,6 +132,7 @@ export default class State {
 			hasPositiveValue: true,
 
 			orgAreaOpacity: "0.2",
+			orgConfig: {}, // user original genration config
 
 			// ID strings
 			hiddenTargetIds: <string[]> [],

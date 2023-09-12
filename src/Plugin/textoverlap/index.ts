@@ -2,7 +2,7 @@
  * Copyright (c) 2017 ~ present NAVER Corp.
  * billboard.js project is licensed under the MIT license
  */
-import {d3Selection} from "billboard.js/types/types";
+import type {d3Selection} from "billboard.js/types/types";
 import {Delaunay as d3Delaunay} from "d3-delaunay";
 import {
 	polygonCentroid as d3PolygonCentroid,
@@ -91,7 +91,10 @@ export default class TextOverlap extends Plugin {
 
 		return d3Delaunay
 			.from(points)
-			.voronoi([...min, ...max]); // bounds = [xmin, ymin, xmax, ymax], default value: [0, 0, 960, 500]
+			.voronoi([
+				...min as [number, number],
+				...max as [number, number]
+			]); // bounds = [xmin, ymin, xmax, ymax], default value: [0, 0, 960, 500]
 	}
 
 	/**

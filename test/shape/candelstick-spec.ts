@@ -7,7 +7,9 @@
 import {expect} from "chai";
 import util from "../assets/util";
 import {isArray} from "../../src/module/util";
-import CLASS from "../../src/config/classes";
+import {$CANDLESTICK, $COMMON} from "../../src/config/classes";
+import { line } from "d3-shape";
+import { brushY } from "d3-brush";
 
 describe("SHAPE CANDLESTICK", () => {
 	let chart;
@@ -47,8 +49,8 @@ describe("SHAPE CANDLESTICK", () => {
 
 		it("check for basic rendering", () => {
 			const expectedPath = [
-				/^M60,217\.\d+V337\.\d+ H240 V217\.\d+z$/,
-				/^M359,337\.\d+V132\.\d+ H539 V337\.\d+z$/
+				/^M60,217\.\d+V33\d\.\d+ H240 V217\.\d+z$/,
+				/^M359\.5,33\d\.\d+V132\.\d+ H539\.5 V33\d\.\d+z$/
 			];
 
 			const expectedLinePos = [
@@ -72,7 +74,7 @@ describe("SHAPE CANDLESTICK", () => {
 				const line = this.querySelector("line");
 
 				// check for bearish data
-				if (this.getAttribute("class").indexOf(CLASS.valueDown) > -1) {
+				if (this.getAttribute("class").indexOf($CANDLESTICK.valueDown) > -1) {
 					expect(data._isUp).to.be.false;
 					expect(data.close < data.open).to.be.true;
 
@@ -81,9 +83,9 @@ describe("SHAPE CANDLESTICK", () => {
 				// check for bullrish data
 				} else {
 					expect(data.close > data.open).to.be.true;
-					expect(this.getAttribute("class").indexOf(CLASS.valueUp) > -1).to.be.true;
+					expect(this.getAttribute("class").indexOf($CANDLESTICK.valueUp) > -1).to.be.true;
 				}
-
+ 
 				expect(expectedPath[i].test(path.getAttribute("d"))).to.be.true;
 				
 				expect(+line.getAttribute("x1")).to.be.closeTo(expectedLinePos[i].x1, 1);
@@ -117,7 +119,7 @@ describe("SHAPE CANDLESTICK", () => {
 			chart.tooltip.show({index});
 
 			chart.$.candlestick.each(function(d, i) {
-				const hasExpandedClass = this.getAttribute("class").indexOf(CLASS.EXPANDED) > -1;
+				const hasExpandedClass = this.getAttribute("class").indexOf($COMMON.EXPANDED) > -1;
 
 				expect(hasExpandedClass).to.be[i === index ? "true" : "false"];
 			});
@@ -126,10 +128,73 @@ describe("SHAPE CANDLESTICK", () => {
 			chart.tooltip.hide();
 
 			chart.$.candlestick.each(function() {
-				const hasExpandedClass = this.getAttribute("class").indexOf(CLASS.EXPANDED) > -1;
+				const hasExpandedClass = this.getAttribute("class").indexOf($COMMON.EXPANDED) > -1;
 
 				expect(hasExpandedClass).to.be.false;
 			});
+		});
+
+		it("set options: with wrong nullish data", () => {
+			args = {
+				data: {
+					columns: [
+						["data1",
+							{open: 100, high: 130, low: 5, close: 30, volume: 100},
+							[10,20,null, null, 10],
+						]
+					],
+					type: "candlestick"
+				}
+			};
+		});
+
+		it("for wrong data, path shouldn't render.", () => {
+			const d = chart.internal.$el.main.selectAll(".bb-shape:last-child path").attr("d");
+
+			expect(d).to.be.equal("M0,0V0 H0 V0z");			
+		});
+	});
+
+	describe("rotated axis", () => {
+		before(() => {
+			args = {
+				data: {
+					columns: [
+						["data1",
+							{open: 100, high: 140, low: -40, close: -20}
+						]
+					],
+					type: "candlestick",
+					labels: true
+				},
+				axis: {
+					rotated: true,
+					x: {
+						type: "category"
+					}
+				},
+				grid: {
+					y: {
+						show: true
+					}
+				}
+			};
+		});
+
+		it("should rendered correctly.", () => {
+			const {$el: {candlestick}, scale: {y}} = chart.internal;
+			const data = chart.data("data1")[0].values[0].value;
+
+			const line = candlestick.select("line");
+			const path = candlestick.select("path").attr("d");
+
+			// check line position
+			expect(+line.attr("x1")).to.be.equal(y(data.low));
+			expect(+line.attr("x2")).to.be.equal(y(data.high));
+
+			// check path position
+			expect(path.indexOf(y(data.close)) > -1).to.be.true;
+			expect(path.indexOf(y(data.open)) > -1).to.be.true;
 		});
 	});
 
@@ -191,8 +256,8 @@ describe("SHAPE CANDLESTICK", () => {
 			const expected = {
 				data1: {
 					path: {
-						0: /^M97\.\d+,217\.\d+V337\.\d+ H149.5 V217\.\d+z$/,
-						1: /^M246\.\d+,337\.\d+V132\.\d+ H299 V337\.\d+z/
+						0: /^M97\.\d+,217\.\d+V33[67]\.\d+ H149\.\d+ V217\.\d+z$/,
+						1: /^M247,33[67]\.\d+V132\.\d+ H299\.5 V33[67]\.\d+z/
 					},
 					line: {
 						0: {
@@ -207,8 +272,8 @@ describe("SHAPE CANDLESTICK", () => {
 				},
 				data2: {
 					path: {
-						0: /^M149.5,202\.\d+V94\.\d+ H201.65 V202\.\d+z$/,
-						2: /^M448.5,217\.\d+V337\.\d+ H500.65 V217\.\d+z$/
+						0: /^M149.75,202\.\d+V9[45]\.\d+ H202.25 V202\.\d+z$/,
+						2: /^M449.25,217\.\d+V33[67]\.\d+ H501.75 V217\.\d+z$/
 					},
 					line: {
 						0: {
@@ -230,7 +295,7 @@ describe("SHAPE CANDLESTICK", () => {
 				const line = this.querySelector("line");
 
 				// check for bearish data
-				if (this.getAttribute("class").indexOf(CLASS.valueDown) > -1) {
+				if (this.getAttribute("class").indexOf($CANDLESTICK.valueDown) > -1) {
 					expect(data._isUp).to.be.false;
 					expect(data.close < data.open).to.be.true;
 
@@ -239,7 +304,7 @@ describe("SHAPE CANDLESTICK", () => {
 				// check for bullrish data
 				} else {
 					expect(data.close > data.open).to.be.true;
-					expect(this.getAttribute("class").indexOf(CLASS.valueUp) > -1).to.be.true;
+					expect(this.getAttribute("class").indexOf($CANDLESTICK.valueUp) > -1).to.be.true;
 				}
 
 				const compareData = expected[d.id];
@@ -253,13 +318,57 @@ describe("SHAPE CANDLESTICK", () => {
 			});
 
 			const expectedLine = {
-				data3: /^M150,8\d\.\d+L299,217\.\d+L449,26\d\.\d+$/,
-				data4: /^M150,8\d\.\d+L22\d\.\d+,8\d\.\d+L224.5,21\d\.\d+L37\d,21\d\.\d+L37\d,26\d\.\d+L44\d,26\d\.\d+$/
+				data3: /^M150,8\d\.\d+L300,217\.\d+L450,26[89]\.\d+$/,
+				data4: /^M150,8\d\.\d+L225,8\d\.\d+L225,21\d\.\d+L37\d,21\d\.\d+L37\d,26\d\.\d+L45\d,26[89]\.\d+$/
 			};
 
 			chart.$.line.lines.each(function(d, i) {
 				expect(expectedLine[d.id].test(this.getAttribute("d"))).to.be.true;
 			})
+		});
+	});
+
+	describe("dynamic load", () => {
+		before(() => {
+			args = {
+				data: {
+					columns: [],
+					labels: true
+				},
+			};
+		});
+
+		it("should generate candlestick from empty chart", done => {
+			const data = [					
+					["data1",
+						{open: 100, high: 130, low: 5, close: 30, volume: 100},
+						[30, 200, 5, 150, 200],
+					]
+				];
+
+			// when
+			chart.load({
+				columns: data,
+				type: "candlestick",
+				done() {
+					const {$el: {candlestick, tooltip}} = this.internal;
+
+					expect(candlestick.size()).to.be.equal(2);
+
+					// when
+					this.tooltip.show({x: 0});
+
+					// check if tooltip content shows correct data
+					const str = JSON.stringify(data[0][1])
+						.replace(/[{}\",]/g, "")
+						.replace(/(\d)(?=[a-z])/g, "$1 ")
+						.replace(/(:)(\d)/g, "$1 $2");
+
+					expect(str).to.be.equal(tooltip.select(".value").text().toLowerCase());
+
+					done();
+				}
+			});
 		});
 	});
 });

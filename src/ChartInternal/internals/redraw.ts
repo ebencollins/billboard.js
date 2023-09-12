@@ -3,7 +3,7 @@
  * billboard.js project is licensed under the MIT license
  */
 import {transition as d3Transition} from "d3-transition";
-import CLASS from "../../config/classes";
+import {$COMMON, $SELECT, $TEXT} from "../../config/classes";
 import {generateWait} from "../../module/generator";
 import {callFn, capitalize, getOption, isTabVisible, notEmpty} from "../../module/util";
 
@@ -11,7 +11,7 @@ export default {
 	redraw(options: any = {}): void {
 		const $$ = this;
 		const {config, state, $el} = $$;
-		const {main} = $el;
+		const {main, treemap} = $el;
 
 		state.redrawing = true;
 
@@ -26,32 +26,26 @@ export default {
 		$$.updateSizes(initializing);
 
 		// update legend and transform each g
-
 		if (wth.Legend && config.legend_show) {
 			options.withTransition = !!duration;
-			$$.updateLegend($$.mapToIds($$.data.targets), options, transitions);
+			!treemap && $$.updateLegend($$.mapToIds($$.data.targets), options, transitions);
 		} else if (wth.Dimension) {
 			// need to update dimension (e.g. axis.y.tick.values) because y tick values should change
 			// no need to update axis in it because they will be updated in redraw()
 			$$.updateDimension(true);
 		}
 
-		// update circleY based on updated parameters
-		if (!$$.hasArcType() || state.hasRadar) {
-			$$.updateCircleY && ($$.circleY = $$.updateCircleY());
-		}
+		// Data empty label positioning and text.
+		config.data_empty_label_text && main.select(`text.${$TEXT.text}.${$COMMON.empty}`)
+			.attr("x", state.width / 2)
+			.attr("y", state.height / 2)
+			.text(config.data_empty_label_text)
+			.style("display", targetsToShow.length ? "none" : null);
 
 		// update axis
 		if (state.hasAxis) {
 			// @TODO: Make 'init' state to be accessible everywhere not passing as argument.
 			$$.axis.redrawAxis(targetsToShow, wth, transitions, flow, initializing);
-
-			// Data empty label positioning and text.
-			config.data_empty_label_text && main.select(`text.${CLASS.text}.${CLASS.empty}`)
-				.attr("x", state.width / 2)
-				.attr("y", state.height / 2)
-				.text(config.data_empty_label_text)
-				.style("display", targetsToShow.length ? "none" : null);
 
 			// grid
 			$$.hasGrid() && $$.updateGrid();
@@ -67,9 +61,8 @@ export default {
 				}
 			});
 
-
 			// circles for select
-			$el.text && main.selectAll(`.${CLASS.selectedCircles}`)
+			$el.text && main.selectAll(`.${$SELECT.selectedCircles}`)
 				.filter($$.isBarType.bind($$))
 				.selectAll("circle")
 				.remove();
@@ -85,10 +78,16 @@ export default {
 
 			// radar
 			$el.radar && $$.redrawRadar();
+
+			// polar
+			$el.polar && $$.redrawPolar();
+
+			// treemap
+			treemap && $$.updateTreemap(durationForExit);
 		}
 
 		// @TODO: Axis & Radar type
-		if (!state.resizing && ($$.hasPointType() || state.hasRadar)) {
+		if (!state.resizing && !treemap && ($$.hasPointType() || state.hasRadar)) {
 			$$.updateCircle();
 		}
 
@@ -101,6 +100,8 @@ export default {
 		initializing && $$.updateTypesElements();
 
 		$$.generateRedrawList(targetsToShow, flow, duration, wth.Subchart);
+		$$.updateTooltipOnRedraw();
+
 		$$.callPluginHook("$redraw", options, duration);
 	},
 
@@ -170,7 +171,7 @@ export default {
 
 	getRedrawList(shape, flow, flowFn, withTransition: boolean): Function[] {
 		const $$ = <any> this;
-		const {config, state: {hasAxis, hasRadar}, $el: {grid}} = $$;
+		const {config, state: {hasAxis, hasRadar, hasTreemap}, $el: {grid}} = $$;
 		const {cx, cy, xForText, yForText} = shape.pos;
 		const list: Function[] = [];
 
@@ -200,8 +201,12 @@ export default {
 				list.push($$.redrawText(xForText, yForText, flow, withTransition));
 		}
 
-		if (($$.hasPointType() || hasRadar) && !config.point_focus_only) {
+		if (($$.hasPointType() || hasRadar) && !$$.isPointFocusOnly()) {
 			$$.redrawCircle && list.push($$.redrawCircle(cx, cy, withTransition, flowFn));
+		}
+
+		if (hasTreemap) {
+			list.push($$.redrawTreemap(withTransition));
 		}
 
 		return list;
@@ -241,15 +246,5 @@ export default {
 
 		// Draw with new sizes & scales
 		$$.redraw(options, transitions);
-	},
-
-	redrawWithoutRescale() {
-		this.redraw({
-			withY: false,
-			withLegend: true,
-			withSubchart: false,
-			withEventRect: false,
-			withTransitionForAxis: false
-		});
 	}
 };
