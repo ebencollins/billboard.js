@@ -5,7 +5,7 @@
  * billboard.js, JavaScript chart library
  * https://naver.github.io/billboard.js/
  * 
- * @version 3.9.4-nightly-20230912012910
+ * @version 3.10.3-nightly-20240120013623
  * @requires billboard.js
  * @summary billboard.js plugin
 */
@@ -493,7 +493,7 @@ var Plugin = /** @class */ (function () {
             delete _this[key];
         });
     };
-    Plugin.version = "3.9.4-nightly-20230912012910";
+    Plugin.version = "3.10.3-nightly-20240120013623";
     return Plugin;
 }());
 var Plugin$1 = Plugin;
@@ -643,7 +643,6 @@ var Options = /** @class */ (function () {
     }
     return Options;
 }());
-var Options$1 = Options;
 
 /**
  * Copyright (c) 2017 ~ present NAVER Corp.
@@ -890,7 +889,6 @@ var Elements = /** @class */ (function () {
     };
     return Elements;
 }());
-var Elements$1 = Elements;
 
 /**
  * Copyright (c) 2017 ~ present NAVER Corp.
@@ -976,7 +974,6 @@ var ColorScale = /** @class */ (function () {
     };
     return ColorScale;
 }());
-var ColorScale$1 = ColorScale;
 
 /**
  * Stanford diagram plugin
@@ -1067,7 +1064,7 @@ var Stanford = /** @class */ (function (_super) {
     __extends(Stanford, _super);
     function Stanford(options) {
         var _this = _super.call(this, options) || this;
-        _this.config = new Options$1();
+        _this.config = new Options();
         return _this;
     }
     Stanford.prototype.$beforeInit = function () {
@@ -1079,19 +1076,24 @@ var Stanford = /** @class */ (function (_super) {
         $$.showGridFocus = function () { };
         $$.labelishData = function (d) { return d.values; };
         $$.opacityForCircle = function () { return 1; };
-        var getCurrentPaddingRight = $$.getCurrentPaddingRight.bind($$);
-        $$.getCurrentPaddingRight = function () { return (getCurrentPaddingRight() + (_this.colorScale ? _this.colorScale.getColorScalePadding() : 0)); };
+        var getCurrentPadding = $$.getCurrentPadding.bind($$);
+        $$.getCurrentPadding = function () {
+            var padding = getCurrentPadding();
+            padding.right += _this.colorScale ? _this.colorScale.getColorScalePadding() : 0;
+            return padding;
+        };
     };
     Stanford.prototype.$init = function () {
         var $$ = this.$$;
         loadConfig.call(this, this.options);
         $$.color = this.getStanfordPointColor.bind($$);
-        this.colorScale = new ColorScale$1(this);
-        this.elements = new Elements$1(this);
+        this.colorScale = new ColorScale(this);
+        this.elements = new Elements(this);
         this.convertData();
         this.initStanfordData();
         this.setStanfordTooltip();
         this.colorScale.drawColorScale();
+        $$.right += this.colorScale ? this.colorScale.getColorScalePadding() : 0;
         this.$redraw();
     };
     Stanford.prototype.$redraw = function (duration) {
@@ -1100,7 +1102,7 @@ var Stanford = /** @class */ (function (_super) {
         (_b = this.elements) === null || _b === void 0 ? void 0 : _b.updateStanfordElements(duration);
     };
     Stanford.prototype.getOptions = function () {
-        return new Options$1();
+        return new Options();
     };
     Stanford.prototype.convertData = function () {
         var data = this.$$.data.targets;

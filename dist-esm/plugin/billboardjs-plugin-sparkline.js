@@ -5,7 +5,7 @@
  * billboard.js, JavaScript chart library
  * https://naver.github.io/billboard.js/
  * 
- * @version 3.9.4-nightly-20230912012910
+ * @version 3.10.3-nightly-20240120013623
  * @requires billboard.js
  * @summary billboard.js plugin
 */
@@ -279,7 +279,7 @@ var Plugin = /** @class */ (function () {
             delete _this[key];
         });
     };
-    Plugin.version = "3.9.4-nightly-20230912012910";
+    Plugin.version = "3.10.3-nightly-20240120013623";
     return Plugin;
 }());
 var Plugin$1 = Plugin;
@@ -314,7 +314,6 @@ var Options = /** @class */ (function () {
     }
     return Options;
 }());
-var Options$1 = Options;
 
 /**
  * Copyright (c) 2017 ~ present NAVER Corp.
@@ -520,7 +519,7 @@ var Sparkline = /** @class */ (function (_super) {
     __extends(Sparkline, _super);
     function Sparkline(options) {
         var _this = _super.call(this, options) || this;
-        _this.config = new Options$1();
+        _this.config = new Options();
         return _this;
     }
     Sparkline.prototype.$beforeInit = function () {
@@ -638,7 +637,7 @@ var Sparkline = /** @class */ (function (_super) {
         eventReceiver.rect = e.target.getBoundingClientRect();
     };
     Sparkline.prototype.moveHandler = function (e) {
-        var _a, _b, _c;
+        var _a, _b, _c, _d;
         var $$ = this.$$;
         var index = $$.getDataIndexFromEvent(e);
         var data = (_a = $$.api.data(e.target.__id)) === null || _a === void 0 ? void 0 : _a[0];
@@ -647,8 +646,8 @@ var Sparkline = /** @class */ (function (_super) {
             d.name = d.id;
         }
         $$.state.event = e;
-        if ($$.isPointFocusOnly() && d) {
-            (_c = $$.showCircleFocus) === null || _c === void 0 ? void 0 : _c.call($$, [d]);
+        if (((_c = $$.isPointFocusOnly) === null || _c === void 0 ? void 0 : _c.call($$)) && d) {
+            (_d = $$.showCircleFocus) === null || _d === void 0 ? void 0 : _d.call($$, [d]);
         }
         $$.setExpand(index, data.id, true);
         $$.showTooltip([d], e.target);

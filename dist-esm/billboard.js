@@ -5,7 +5,7 @@
  * billboard.js, JavaScript chart library
  * https://naver.github.io/billboard.js/
  * 
- * @version 3.9.4-nightly-20230912012910
+ * @version 3.10.3-nightly-20240120013623
 */
 import { timeParse, utcParse, timeFormat, utcFormat } from 'd3-time-format';
 import { pointer, select, namespaces, selectAll } from 'd3-selection';
@@ -48,18 +48,20 @@ function getGlobal() {
  * @private
  */
 function getFallback(w) {
-    var hasRAF = typeof (w === null || w === void 0 ? void 0 : w.requestAnimationFrame) === "function";
-    var hasRIC = typeof (w === null || w === void 0 ? void 0 : w.requestIdleCallback) === "function";
+    var hasRAF = typeof (w === null || w === void 0 ? void 0 : w.requestAnimationFrame) === "function" && typeof (w === null || w === void 0 ? void 0 : w.cancelAnimationFrame) === "function";
+    var hasRIC = typeof (w === null || w === void 0 ? void 0 : w.requestIdleCallback) === "function" && typeof (w === null || w === void 0 ? void 0 : w.cancelIdleCallback) === "function";
+    var request = function (cb) { return setTimeout(cb, 1); };
+    var cancel = function (id) { return clearTimeout(id); };
     return [
-        hasRAF ? w.requestAnimationFrame : (function (cb) { return setTimeout(cb, 1); }),
-        hasRAF ? w.cancelAnimationFrame : (function (id) { return clearTimeout(id); }),
-        hasRIC ? w.requestIdleCallback : requestAnimationFrame,
-        hasRIC ? w.cancelIdleCallback : cancelAnimationFrame
+        hasRAF ? w.requestAnimationFrame : request,
+        hasRAF ? w.cancelAnimationFrame : cancel,
+        hasRIC ? w.requestIdleCallback : request,
+        hasRIC ? w.cancelIdleCallback : cancel
     ];
 }
 var win = getGlobal();
 var doc = win === null || win === void 0 ? void 0 : win.document;
-var _a = getFallback(win), requestAnimationFrame = _a[0], cancelAnimationFrame = _a[1], requestIdleCallback = _a[2];
+var _a = getFallback(win), requestAnimationFrame = _a[0], requestIdleCallback = _a[2];
 
 /**
  * Copyright (c) 2017 ~ present NAVER Corp.
@@ -353,9 +355,9 @@ function getRectSegList(path) {
      * */
     var _a = path.getBBox(), x = _a.x, y = _a.y, width = _a.width, height = _a.height;
     return [
-        { x: x, y: y + height },
-        { x: x, y: y },
-        { x: x + width, y: y },
+        { x: x, y: y + height }, // seg0
+        { x: x, y: y }, // seg1
+        { x: x + width, y: y }, // seg2
         { x: x + width, y: y + height } // seg3
     ];
 }
@@ -595,6 +597,19 @@ function getCssRules(styleSheets) {
         }
     });
     return rules;
+}
+/**
+ * Get current window and container scroll position
+ * @param {HTMLElement} node Target element
+ * @returns {object} window scroll position
+ * @private
+ */
+function getScrollPosition(node) {
+    var _a, _b, _c, _d, _e, _f;
+    return {
+        x: (_c = ((_b = (_a = win.pageXOffset) !== null && _a !== void 0 ? _a : win.scrollX) !== null && _b !== void 0 ? _b : 0) + node.scrollLeft) !== null && _c !== void 0 ? _c : 0,
+        y: (_f = ((_e = (_d = win.pageYOffset) !== null && _d !== void 0 ? _d : win.scrollY) !== null && _e !== void 0 ? _e : 0) + node.scrollTop) !== null && _f !== void 0 ? _f : 0
+    };
 }
 /**
  * Gets the SVGMatrix of an SVGGElement
@@ -1100,31 +1115,31 @@ var Element = /** @class */ (function () {
             legend: null,
             title: null,
             subchart: {
-                main: null,
-                bar: null,
-                line: null,
+                main: null, // $$.context
+                bar: null, // $$.contextBar
+                line: null, // $$.contextLine
                 area: null // $$.contextArea
             },
             arcs: null,
-            bar: null,
+            bar: null, // mainBar,
             candlestick: null,
-            line: null,
-            area: null,
-            circle: null,
+            line: null, // mainLine,
+            area: null, // mainArea,
+            circle: null, // mainCircle,
             radar: null,
-            text: null,
+            text: null, // mainText,
             grid: {
-                main: null,
-                x: null,
+                main: null, // grid (also focus)
+                x: null, // xgrid,
                 y: null, // ygrid,
             },
             gridLines: {
-                main: null,
-                x: null,
+                main: null, // gridLines
+                x: null, // xgridLines,
                 y: null, // ygridLines
             },
             region: {
-                main: null,
+                main: null, // region
                 list: null // mainRegion
             },
             eventRect: null,
@@ -1186,10 +1201,10 @@ var State = /** @class */ (function () {
                 width: 0,
                 height: 0,
                 dataMax: 0,
-                maxTickWidths: {
-                    x: { size: 0, ticks: [], clipPath: 0, domain: "" },
-                    y: { size: 0, domain: "" },
-                    y2: { size: 0, domain: "" }
+                maxTickSize: {
+                    x: { width: 0, height: 0, ticks: [], clipPath: 0, domain: "" },
+                    y: { width: 0, height: 0, domain: "" },
+                    y2: { width: 0, height: 0, domain: "" }
                 },
                 // current used chart type list
                 types: [],
@@ -1205,9 +1220,9 @@ var State = /** @class */ (function () {
             legendItemHeight: 0,
             legendHasRendered: false,
             eventReceiver: {
-                currentIdx: -1,
-                rect: {},
-                data: [],
+                currentIdx: -1, // current event interaction index
+                rect: {}, // event rect's clientBoundingRect
+                data: [], // event data bound of previoous eventRect
                 coords: [] // coordination value of previous eventRect
             },
             axis: {
@@ -1231,7 +1246,7 @@ var State = /** @class */ (function () {
                 idYAxis: "",
                 idXAxisTickTexts: "",
                 idGrid: "",
-                idSubchart: "",
+                idSubchart: "", // clipIdForSubchart
                 path: "",
                 pathXAxis: "",
                 pathYAxis: "",
@@ -1239,7 +1254,7 @@ var State = /** @class */ (function () {
                 pathGrid: ""
             },
             // state
-            event: null,
+            event: null, // event object
             dragStart: null,
             dragging: false,
             flowing: false,
@@ -1247,14 +1262,14 @@ var State = /** @class */ (function () {
             mouseover: false,
             rendered: false,
             transiting: false,
-            redrawing: false,
-            resizing: false,
-            toggling: false,
+            redrawing: false, // if redraw() is on process
+            resizing: false, // resize event called
+            toggling: false, // legend toggle
             zooming: false,
             hasNegativeValue: false,
             hasPositiveValue: true,
             orgAreaOpacity: "0.2",
-            orgConfig: {},
+            orgConfig: {}, // user original genration config
             // ID strings
             hiddenTargetIds: [],
             hiddenLegendIds: [],
@@ -1406,6 +1421,7 @@ var main = {
     size_height: undefined,
     /**
      * The padding of the chart element.
+     * - **NOTE:** for more information, see the "[`Understanding padding`](https://github.com/naver/billboard.js/wiki/Understanding-padding)"" wiki documentaion.
      * @name padding
      * @memberof Options
      * @type {object}
@@ -2786,7 +2802,12 @@ var legend$2 = {
      * - **Available Values:**
      *   - circle
      *   - rectangle
+     * @property {boolean} [legend.format] Set formatter function for legend text.
+     * The argument:<br>
+     *  - `id`: legend text(which is data id) value
+     * @property {boolean} [legend.tooltip=false] Show full legend text value using system tooltip(via `<title>` element).
      * @property {boolean} [legend.usePoint=false] Whether to use custom points in legend.
+     * @see [Demo: format](https://naver.github.io/billboard.js/demo/#Legend.LegendFormat)
      * @see [Demo: item.interaction](https://naver.github.io/billboard.js/demo/#Legend.LegendItemInteraction)
      * @see [Demo: item.tile.type](https://naver.github.io/billboard.js/demo/#Legend.LegendItemTileType)
      * @see [Demo: position](https://naver.github.io/billboard.js/demo/#Legend.LegendPosition)
@@ -2849,6 +2870,16 @@ var legend$2 = {
      *              r: 10
      *          }
      *      },
+     *      format: function(id) {
+     *          // set ellipsis string when length is > 5
+     *          // to get full legend value, combine with 'legend.tooltip=true'
+     *          if (id.length > 5) {
+     *            	id = id.substr(0, 5) + "...";
+     *          }
+     *
+     *          return id;
+     *      },
+     *      tooltip: true,
      *      usePoint: true
      *  }
      */
@@ -2869,9 +2900,11 @@ var legend$2 = {
     legend_item_tile_height: 10,
     legend_item_tile_r: 5,
     legend_item_tile_type: "rectangle",
+    legend_format: undefined,
     legend_padding: 0,
     legend_position: "bottom",
     legend_show: true,
+    legend_tooltip: false,
     legend_usePoint: false
 };
 
@@ -3004,6 +3037,7 @@ var tooltip$2 = {
      * @see [Demo: Tooltip Grouping](https://naver.github.io/billboard.js/demo/#Tooltip.TooltipGrouping)
      * @see [Demo: Tooltip Format](https://naver.github.io/billboard.js/demo/#Tooltip.TooltipFormat)
      * @see [Demo: Linked Tooltip](https://naver.github.io/billboard.js/demo/#Tooltip.LinkedTooltips)
+     * @see [Demo: Tooltip Position](https://naver.github.io/billboard.js/demo/#Tooltip.TooltipPosition)
      * @see [Demo: Tooltip Template](https://naver.github.io/billboard.js/demo/#Tooltip.TooltipTemplate)
      * @example
      *  tooltip: {
@@ -3027,8 +3061,31 @@ var tooltip$2 = {
      *          //   x: Current mouse event x position,
      *          //   y: Current mouse event y position,
      *          //   xAxis: Current x Axis position (the value is given for axis based chart type only)
+     *          //   yAxis: Current y Axis position value or function(the value is given for axis based chart type only)
      *          // }
-     *          return {top: 0, left: 0}
+     *
+     *          // yAxis will work differently per data lenghts
+     *          // - a) Single data: `yAxis` will return `number` value
+     *          // - b) Multiple data: `yAxis` will return a function with property value
+     *
+     *          // a) Single data:
+     *          // Get y coordinate
+     *          pos.yAxis; // y axis coordinate value of current data point
+     *
+     *          // b) Multiple data:
+     *          // Get y coordinate of value 500, where 'data1' scales(y or y2).
+     *          // When 'data.axes' option is used, data can bound to different axes.
+     *          // - when "data.axes={data1: 'y'}", wil return y value from y axis scale.
+     *          // - when "data.axes={data1: 'y2'}", wil return y value from y2 axis scale.
+     *          pos.yAxis(500, "data1"); // will return y coordinate value of data1
+     *
+     *          pos.yAxis(500); // get y coordinate with value of 500, using y axis scale
+     *          pos.yAxis(500, null, "y2"); // get y coordinate with value of 500, using y2 axis scale
+     *
+     *          return {
+     *            top: 0,
+     *            left: 0
+     *          }
      *      },
      *
      *      contents: function(d, defaultTitleFormat, defaultValueFormat, color) {
@@ -3182,6 +3239,7 @@ var KEY = {
     dataTotalPerIndex: "$totalPerIndex",
     legendItemTextBox: "legendItemTextBox",
     radarPoints: "$radarPoints",
+    radarTextWidth: "$radarTextWidth",
     setOverOut: "setOverOut",
     callOverOutForTouch: "callOverOutForTouch",
     textRect: "textRect"
@@ -4344,7 +4402,7 @@ var data$1 = {
      */
     getDataIndexFromEvent: function (event) {
         var $$ = this;
-        var config = $$.config, _a = $$.state, hasRadar = _a.hasRadar, inputType = _a.inputType, _b = _a.eventReceiver, coords = _b.coords, rect = _b.rect;
+        var $el = $$.$el, config = $$.config, _a = $$.state, hasRadar = _a.hasRadar, inputType = _a.inputType, _b = _a.eventReceiver, coords = _b.coords, rect = _b.rect;
         var index;
         if (hasRadar) {
             var target = event.target;
@@ -4357,9 +4415,12 @@ var data$1 = {
         }
         else {
             var isRotated = config.axis_rotated;
+            var scrollPos = getScrollPosition($el.chart.node());
             // get data based on the mouse coords
             var e = inputType === "touch" && event.changedTouches ? event.changedTouches[0] : event;
-            index = findIndex(coords, isRotated ? e.clientY - rect.top : e.clientX - rect.left, 0, coords.length - 1, isRotated);
+            index = findIndex(coords, isRotated ?
+                e.clientY + scrollPos.y - rect.top :
+                e.clientX + scrollPos.x - rect.left, 0, coords.length - 1, isRotated);
         }
         return index;
     },
@@ -4519,14 +4580,19 @@ var data$1 = {
         if (type === void 0) { type = "areaRange"; }
         var value = d === null || d === void 0 ? void 0 : d.value;
         if (isArray(value)) {
-            // @ts-ignore
-            var index = {
-                areaRange: ["high", "mid", "low"],
-                candlestick: ["open", "high", "low", "close", "volume"]
-            }[type].indexOf(key);
-            return index >= 0 && value ? value[index] : undefined;
+            if (type === "bar") {
+                return value.reduce(function (a, c) { return c - a; });
+            }
+            else {
+                // @ts-ignore
+                var index = {
+                    areaRange: ["high", "mid", "low"],
+                    candlestick: ["open", "high", "low", "close", "volume"]
+                }[type].indexOf(key);
+                return index >= 0 && value ? value[index] : undefined;
+            }
         }
-        else if (value) {
+        else if (value && key) {
             return value[key];
         }
         return value;
@@ -4599,7 +4665,7 @@ var data$1 = {
                 var yScale = $$.getYScaleById.bind($$)(d.id);
                 var max = yScale.domain().reduce(function (a, c) { return c - a; });
                 // when all data are 0, return 0
-                ratio = max === 0 ? 0 : Math.abs(d.value) / max;
+                ratio = max === 0 ? 0 : Math.abs($$.getRangedData(d, null, type) / max);
             }
             else if (type === "treemap") {
                 ratio /= $$.getTotalDataSum(true);
@@ -4683,8 +4749,13 @@ function callDone(fn, resizeAfter) {
 var dataLoad = {
     load: function (rawTargets, args) {
         var $$ = this;
-        var data = $$.data;
+        var axis = $$.axis, data = $$.data, org = $$.org, scale = $$.scale;
         var append = args.append;
+        var zoomState = {
+            domain: null,
+            currentDomain: null,
+            x: null
+        };
         var targets = rawTargets;
         if (targets) {
             // filter loading targets if needed
@@ -4714,12 +4785,36 @@ var dataLoad = {
         }
         // Set targets
         $$.updateTargets(data.targets);
+        if (scale.zoom) {
+            zoomState.x = axis.isCategorized() ? scale.x.orgScale() : (org.xScale || scale.x).copy();
+            zoomState.domain = $$.getXDomain(data.targets); // get updated xDomain
+            zoomState.x.domain(zoomState.domain);
+            zoomState.currentDomain = $$.zoom.getDomain(); // current zoomed domain
+            // reset zoom state when new data loaded is out of range
+            if (!$$.withinRange(zoomState.currentDomain, undefined, zoomState.domain)) {
+                scale.x.domain(zoomState.domain);
+                scale.zoom = null;
+                $$.$el.eventRect.property("__zoom", null);
+            }
+        }
         // Redraw with new targets
         $$.redraw({
             withUpdateOrgXDomain: true,
             withUpdateXDomain: true,
             withLegend: true
         });
+        // when load happens on zoom state
+        if (scale.zoom) {
+            // const x = (axis.isCategorized() ? scale.x.orgScale() : (org.xScale || scale.x)).copy();
+            org.xDomain = zoomState.domain;
+            org.xScale = zoomState.x;
+            if (axis.isCategorized()) {
+                zoomState.currentDomain = $$.getZoomDomainValue(zoomState.currentDomain);
+                org.xDomain = $$.getZoomDomainValue(org.xDomain);
+                org.xScale = zoomState.x.domain(org.xDomain);
+            }
+            $$.updateCurrentZoomTransform(zoomState.x, zoomState.currentDomain);
+        }
         // Update current state chart type and elements list after redraw
         $$.updateTypesElements();
         callDone.call($$, args.done, args.resizeAfter);
@@ -4863,7 +4958,7 @@ var interaction = {
             }
             else {
                 if (isOver) {
-                    $$.isPointFocusOnly() && hasRadar ?
+                    hasRadar && $$.isPointFocusOnly() ?
                         $$.showCircleFocus($$.getAllValuesOnIndex(d, true)) :
                         $$.setExpand(d, null, true);
                 }
@@ -4926,6 +5021,7 @@ var interaction = {
             (hasRadar && radar.axes.select(".".concat($AXIS.axis, "-").concat(index, " text"))) || (eventRect || ((_a = $$.getArcElementByIdOrIndex) === null || _a === void 0 ? void 0 : _a.call($$, index))))) === null || _b === void 0 ? void 0 : _b.node();
         if (element) {
             var isMultipleX = $$.isMultipleX();
+            var isRotated = config.axis_rotated;
             var _e = element.getBoundingClientRect(), width = _e.width, left = _e.left, top_1 = _e.top;
             if (hasAxis && !hasRadar && !isMultipleX) {
                 var coords = eventReceiver.coords[index];
@@ -4940,13 +5036,15 @@ var interaction = {
                     top_1 = 0;
                 }
             }
-            var x = left + (mouse ? mouse[0] : 0) + (isMultipleX || config.axis_rotated ? 0 : (width / 2));
-            var y = top_1 + (mouse ? mouse[1] : 0);
+            var x = left + (mouse ? mouse[0] : 0) + (isMultipleX || isRotated ? 0 : (width / 2));
+            // value 4, is to adjust coordinate value set from: scale.ts - updateScales(): $$.getResettedPadding(1)
+            var y = top_1 + (mouse ? mouse[1] : 0) + (isRotated ? 4 : 0);
             var params = {
                 screenX: x,
                 screenY: y,
                 clientX: x,
-                clientY: y
+                clientY: y,
+                bubbles: hasRadar // radar type needs to bubble up event
             };
             emulateEvent[/^(mouse|click)/.test(type) ? "mouse" : "touch"](hasTreemap ? treemap.node() : element, type, params);
         }
@@ -5609,7 +5707,7 @@ var domain = {
         if (withUpdateOrgXDomain) {
             x.domain(domain || sortValue($$.getXDomain(targets), !config.axis_x_inverted));
             org.xDomain = x.domain();
-            zoomEnabled && $$.zoom.updateScaleExtent();
+            // zoomEnabled && $$.zoom.updateScaleExtent();
             subX.domain(x.domain());
             (_a = $$.brush) === null || _a === void 0 ? void 0 : _a.scale(subX);
         }
@@ -5617,6 +5715,9 @@ var domain = {
             var domainValue = domain || (!$$.brush || brushEmpty($$)) ?
                 org.xDomain : getBrushSelection($$).map(subX.invert);
             x.domain(domainValue);
+            // zoomEnabled && $$.zoom.updateScaleExtent();
+        }
+        if (withUpdateOrgXDomain || withUpdateXDomain) {
             zoomEnabled && $$.zoom.updateScaleExtent();
         }
         // Trim domain when too big by zoom mousemove event
@@ -5635,8 +5736,8 @@ var domain = {
         var zoomDomain = $$.getZoomDomain();
         var min = zoomDomain[0], max = zoomDomain[1];
         if (isInverted ? domain[0] >= min : domain[0] <= min) {
-            domain[0] = min;
             domain[1] = +domain[1] + (min - domain[0]);
+            domain[0] = min;
         }
         if (isInverted ? domain[1] <= max : domain[1] >= max) {
             domain[0] = +domain[0] - (domain[1] - max);
@@ -5668,6 +5769,24 @@ var domain = {
         return [min, max];
     },
     /**
+     * Return zoom domain from given domain
+     * - 'category' type need to add offset to original value
+     * @param {Array} domainValue domain value
+     * @returns {Array} Zoom domain
+     * @private
+     */
+    getZoomDomainValue: function (domainValue) {
+        var $$ = this;
+        var config = $$.config, axis = $$.axis;
+        if (axis.isCategorized() && Array.isArray(domainValue)) {
+            var isInverted_1 = config.axis_x_inverted;
+            // need to add offset to original value for 'category' type
+            var domain = domainValue.map(function (v, i) { return Number(v) + (i === 0 ? +isInverted_1 : +!isInverted_1); });
+            return domain;
+        }
+        return domainValue;
+    },
+    /**
      * Converts pixels to axis' scale values
      * @param {string} type Axis type
      * @param {number} pixels Pixels
@@ -5697,6 +5816,7 @@ var domain = {
      * @private
      */
     withinRange: function (domain, current, range) {
+        if (current === void 0) { current = [0, 0]; }
         var $$ = this;
         var isInverted = $$.config.axis_x_inverted;
         var _a = range, min = _a[0], max = _a[1];
@@ -5752,7 +5872,7 @@ var format = {
         };
     },
     defaultValueFormat: function (v) {
-        return isValue(v) ? +v : "";
+        return isArray(v) ? v.join("~") : (isValue(v) ? +v : "");
     },
     defaultArcValueFormat: function (v, ratio) {
         return "".concat((ratio * 100).toFixed(1), "%");
@@ -5763,7 +5883,17 @@ var format = {
     dataLabelFormat: function (targetId) {
         var $$ = this;
         var dataLabels = $$.config.data_labels;
-        var defaultFormat = function (v) { return (isValue(v) ? +v : ""); };
+        var defaultFormat = function (v) {
+            var delimiter = "~";
+            var res = v;
+            if (isArray(v)) {
+                res = v.join(delimiter);
+            }
+            else if (isObject(v)) {
+                res = Object.values(v).join(delimiter);
+            }
+            return res;
+        };
         var format = defaultFormat;
         // find format according to axis id
         if (isFunction(dataLabels.format)) {
@@ -5799,6 +5929,20 @@ function getLegendColor(id) {
         $$.levelColor(data.values[0].value) :
         $$.color(data);
     return color;
+}
+/**
+ * Get formatted text value
+ * @param {string} id Legend text id
+ * @returns {string} Formatted legend text
+ */
+function getFormattedText(id) {
+    var _a;
+    var config = this.config;
+    var text = (_a = config.data_names[id]) !== null && _a !== void 0 ? _a : id;
+    if (isFunction(config.legend_format)) {
+        text = config.legend_format(text);
+    }
+    return text;
 }
 var legend$1 = {
     /**
@@ -5906,11 +6050,11 @@ var legend$1 = {
         var width = size.width, height = size.height;
         var insetLegendPosition = {
             top: isLegendTop ?
-                $$.getCurrentPaddingTop() + config.legend_inset_y + 5.5 :
-                current.height - height - $$.getCurrentPaddingBottom() - config.legend_inset_y,
+                $$.getCurrentPaddingByDirection("top") + config.legend_inset_y + 5.5 :
+                current.height - height - $$.getCurrentPaddingByDirection("bottom") - config.legend_inset_y,
             left: isLegendLeft ?
-                $$.getCurrentPaddingLeft() + config.legend_inset_x + 0.5 :
-                current.width - width - $$.getCurrentPaddingRight() - config.legend_inset_x + 0.5
+                $$.getCurrentPaddingByDirection("left") + config.legend_inset_x + 0.5 :
+                current.width - width - $$.getCurrentPaddingByDirection("right") - config.legend_inset_x + 0.5
         };
         $$.state.margin3 = {
             top: isLegendRight ?
@@ -6252,9 +6396,14 @@ var legend$1 = {
                 .attr("class", $LEGEND.legendBackground)
                 .append("rect");
         }
+        if (config.legend_tooltip) {
+            legend.selectAll("title")
+                .data(targetIdz)
+                .text(function (id) { return id; });
+        }
         var texts = legend.selectAll("text")
             .data(targetIdz)
-            .text(function (id) { return (isDefined(config.data_names[id]) ? config.data_names[id] : id); }) // MEMO: needed for update
+            .text(getFormattedText.bind($$)) // MEMO: needed for update
             .each(function (id, i) {
             updatePositions(this, id, i);
         });
@@ -6380,8 +6529,11 @@ var legend$1 = {
             .enter()
             .append("g");
         $$.setLegendItem(l);
+        if (config.legend_tooltip) {
+            l.append("title").text(function (id) { return id; });
+        }
         l.append("text")
-            .text(function (id) { return (isDefined(config.data_names[id]) ? config.data_names[id] : id); })
+            .text(getFormattedText.bind($$))
             .each(function (id, i) {
             updatePositions(this, id, i);
         })
@@ -6747,8 +6899,8 @@ function getScale(type, min, max) {
 var scale = {
     /**
      * Get x Axis scale function
-     * @param {number} min Min value
-     * @param {number} max Max value
+     * @param {number} min Min range value
+     * @param {number} max Max range value
      * @param {Array} domain Domain value
      * @param {Function} offset The offset getter to be sum
      * @returns {Function} scale
@@ -6756,7 +6908,7 @@ var scale = {
      */
     getXScale: function (min, max, domain, offset) {
         var $$ = this;
-        var scale = $$.scale.zoom || getScale($$.axis.getAxisType("x"), min, max);
+        var scale = ($$.state.loading !== "append" && $$.scale.zoom) || getScale($$.axis.getAxisType("x"), min, max);
         return $$.getCustomizedXScale(domain ? scale.domain(domain) : scale, offset);
     },
     /**
@@ -7125,6 +7277,9 @@ var shape = {
             if (isNumber(d)) {
                 value = d;
             }
+            else if ($$.isAreaRangeType(d)) {
+                value = $$.getBaseValue(d, "mid");
+            }
             else if (isStackNormalized) {
                 value = $$.getRatio("index", d, true);
             }
@@ -7396,90 +7551,6 @@ var size = {
         var h = config.size_height || $$.getParentHeight();
         return h > 0 ? h : 320 / ($$.hasType("gauge") && !config.gauge_fullCircle ? 2 : 1);
     },
-    getCurrentPaddingTop: function () {
-        var $$ = this;
-        var config = $$.config, hasAxis = $$.state.hasAxis, $el = $$.$el;
-        var axesLen = hasAxis ? config.axis_y2_axes.length : 0;
-        var padding = isValue(config.padding_top) ?
-            config.padding_top : 0;
-        if ($el.title && $el.title.node()) {
-            padding += $$.getTitlePadding();
-        }
-        if (axesLen && config.axis_rotated) {
-            padding += $$.getHorizontalAxisHeight("y2") * axesLen;
-        }
-        return padding;
-    },
-    getCurrentPaddingBottom: function () {
-        var $$ = this;
-        var config = $$.config, hasAxis = $$.state.hasAxis;
-        var axisId = config.axis_rotated ? "y" : "x";
-        var axesLen = hasAxis ? config["axis_".concat(axisId, "_axes")].length : 0;
-        var padding = isValue(config.padding_bottom) ?
-            config.padding_bottom : 0;
-        return padding + (axesLen ? $$.getHorizontalAxisHeight(axisId) * axesLen : 0);
-    },
-    getCurrentPaddingLeft: function (withoutRecompute) {
-        var _a;
-        var $$ = this;
-        var config = $$.config, hasAxis = $$.state.hasAxis;
-        var isRotated = config.axis_rotated;
-        var isFitPadding = ((_a = config.padding) === null || _a === void 0 ? void 0 : _a.mode) === "fit";
-        var axisId = isRotated ? "x" : "y";
-        var axesLen = hasAxis ? config["axis_".concat(axisId, "_axes")].length : 0;
-        var axisWidth = hasAxis ? $$.getAxisWidthByAxisId(axisId, withoutRecompute) : 0;
-        if (!isFitPadding) {
-            axisWidth = ceil10(axisWidth);
-        }
-        var padding = config["axis_".concat(axisId, "_inner")] || !config["axis_".concat(axisId, "_show")] ? 0 : axisWidth;
-        if (isValue(config.padding_left)) {
-            padding = config.padding_left + (isFitPadding && isRotated ? axisWidth : 0);
-        }
-        else if (hasAxis && isRotated) {
-            padding = !config.axis_x_show ?
-                1 : (isFitPadding ? axisWidth : Math.max(axisWidth, 40));
-        }
-        if (hasAxis && (isFitPadding || config["axis_".concat(axisId, "_inner")]) && config["axis_".concat(axisId, "_label")].text) {
-            padding += $$.axis.getAxisLabelPosition("y").isOuter ? 20 : 0;
-        }
-        return padding + (axisWidth * axesLen);
-    },
-    getCurrentPaddingRight: function (withXAxisTickTextOverflow) {
-        var _a, _b;
-        if (withXAxisTickTextOverflow === void 0) { withXAxisTickTextOverflow = false; }
-        var $$ = this;
-        var config = $$.config, hasAxis = $$.state.hasAxis;
-        var isRotated = config.axis_rotated;
-        var isFitPadding = ((_a = config.padding) === null || _a === void 0 ? void 0 : _a.mode) === "fit";
-        var defaultPadding = isFitPadding ? 2 : 10;
-        var legendWidthOnRight = $$.state.isLegendRight ? $$.getLegendWidth() + 20 : 0;
-        var axesLen = hasAxis ? config.axis_y2_axes.length : 0;
-        var axisLabelWidth = ((_b = $$.axis) === null || _b === void 0 ? void 0 : _b.getAxisLabelPosition("y2").isOuter) ? 20 : 0;
-        var xAxisTickTextOverflow = withXAxisTickTextOverflow ?
-            $$.axis.getXAxisTickTextY2Overflow(defaultPadding) : 0;
-        var axisWidth = hasAxis && !config.axis_y2_inner ? $$.getAxisWidthByAxisId("y2") : 1;
-        if (!isFitPadding) {
-            axisWidth = ceil10(axisWidth);
-        }
-        var padding = isRotated ? 0 : Math.max(axisWidth + legendWidthOnRight, xAxisTickTextOverflow);
-        if (isValue(config.padding_right)) {
-            // padding = config.padding_right + (hasAxis ? 1 : 0); // 1 is needed not to hide tick line
-            padding = config.padding_right +
-                (isFitPadding && (isRotated || !config.axis_y2_show ? defaultPadding : padding)) +
-                (hasAxis && !isFitPadding ? 1 : 0); // 1 is needed not to hide tick line
-        }
-        else if ($$.axis && isRotated) {
-            padding = defaultPadding + legendWidthOnRight;
-        }
-        else if ($$.axis && (!config.axis_y2_show || config.axis_y2_inner)) {
-            padding = Math.max((isFitPadding && !config.axis_y2_show ? 2 : 1) + legendWidthOnRight + axisLabelWidth, xAxisTickTextOverflow);
-        }
-        if (hasAxis && !isRotated && isFitPadding &&
-            config.axis_y2_show && !config.axis_y2_inner && config.axis_y2_label.text) {
-            padding += axisLabelWidth;
-        }
-        return padding + (axisWidth * axesLen);
-    },
     /**
      * Get the parent rect element's size
      * @param {string} key property/attribute name
@@ -7524,15 +7595,25 @@ var size = {
     },
     getSvgLeft: function (withoutRecompute) {
         var $$ = this;
-        var config = $$.config, $el = $$.$el;
-        var hasLeftAxisRect = config.axis_rotated || (!config.axis_rotated && !config.axis_y_inner);
-        var leftAxisClass = config.axis_rotated ? $AXIS.axisX : $AXIS.axisY;
+        var config = $$.config, hasAxis = $$.state.hasAxis, $el = $$.$el;
+        var isRotated = config.axis_rotated;
+        var hasLeftAxisRect = isRotated || (!isRotated && !config.axis_y_inner);
+        var leftAxisClass = isRotated ? $AXIS.axisX : $AXIS.axisY;
         var leftAxis = $el.main.select(".".concat(leftAxisClass)).node();
+        var leftLabel = hasAxis && config["axis_".concat(isRotated ? "x" : "y", "_label")];
+        var labelWidth = 0;
+        // if axis label position set to inner, exclude from the value
+        if (hasAxis && (isString(leftLabel) || isString(leftLabel.text) || /^inner-/.test(leftLabel === null || leftLabel === void 0 ? void 0 : leftLabel.position))) {
+            var label = $el.main.select(".".concat(leftAxisClass, "-label"));
+            if (!label.empty()) {
+                labelWidth = label.node().getBoundingClientRect().left;
+            }
+        }
         var svgRect = leftAxis && hasLeftAxisRect ? leftAxis.getBoundingClientRect() : { right: 0 };
-        var chartRect = $el.chart.node().getBoundingClientRect();
+        var chartRectLeft = $el.chart.node().getBoundingClientRect().left + labelWidth;
         var hasArc = $$.hasArcType();
-        var svgLeft = svgRect.right - chartRect.left -
-            (hasArc ? 0 : $$.getCurrentPaddingLeft(withoutRecompute));
+        var svgLeft = svgRect.right - chartRectLeft -
+            (hasArc ? 0 : $$.getCurrentPaddingByDirection("left", withoutRecompute));
         return svgLeft > 0 ? svgLeft : 0;
     },
     updateDimension: function (withoutAxis) {
@@ -7576,14 +7657,74 @@ var size = {
                 .attr("height", brushSize.height);
         }
     },
-    getCurrentPadding: function () {
+    /**
+     * Get padding by the direction.
+     * @param {string} type "top" | "bottom" | "left" | "right"
+     * @param {boolean} [withoutRecompute=false] If set true, do not recompute the padding value.
+     * @param {boolean} [withXAxisTickTextOverflow=false] If set true, calculate x axis tick text overflow.
+     * @returns {number} padding value
+     * @private
+     */
+    getCurrentPaddingByDirection: function (type, withoutRecompute, withXAxisTickTextOverflow) {
+        var _a;
+        if (withoutRecompute === void 0) { withoutRecompute = false; }
+        if (withXAxisTickTextOverflow === void 0) { withXAxisTickTextOverflow = false; }
         var $$ = this;
-        return {
-            top: $$.getCurrentPaddingTop(),
-            bottom: $$.getCurrentPaddingBottom(),
-            left: $$.getCurrentPaddingLeft(),
-            right: $$.getCurrentPaddingRight()
-        };
+        var config = $$.config, $el = $$.$el, hasAxis = $$.state.hasAxis;
+        var isRotated = config.axis_rotated;
+        var isFitPadding = ((_a = config.padding) === null || _a === void 0 ? void 0 : _a.mode) === "fit";
+        var paddingOption = isNumber(config["padding_".concat(type)]) ? config["padding_".concat(type)] : undefined;
+        var axisId = hasAxis ? {
+            top: isRotated ? "y2" : null,
+            bottom: isRotated ? "y" : "x",
+            left: isRotated ? "x" : "y",
+            right: isRotated ? null : "y2"
+        }[type] : null;
+        var isLeftRight = /^(left|right)$/.test(type);
+        var isAxisInner = axisId && config["axis_".concat(axisId, "_inner")];
+        var isAxisShow = axisId && config["axis_".concat(axisId, "_show")];
+        var axesLen = axisId ? config["axis_".concat(axisId, "_axes")].length : 0;
+        var axisSize = axisId ? (isLeftRight ?
+            $$.getAxisWidthByAxisId(axisId, withoutRecompute) :
+            $$.getHorizontalAxisHeight(axisId)) : 0;
+        var defaultPadding = 20;
+        var gap = 0;
+        if (!isFitPadding && isLeftRight) {
+            axisSize = ceil10(axisSize);
+        }
+        var padding = hasAxis && isLeftRight && (isAxisInner || (isUndefined(paddingOption) && !isAxisShow)) ? 0 : (isFitPadding ? (isAxisShow ? axisSize : 0) + (paddingOption !== null && paddingOption !== void 0 ? paddingOption : 0) : (isUndefined(paddingOption) ? axisSize : paddingOption));
+        if (isLeftRight && hasAxis) {
+            if (axisId && (isFitPadding || isAxisInner) && config["axis_".concat(axisId, "_label")].text) {
+                padding += $$.axis.getAxisLabelPosition(axisId).isOuter ? defaultPadding : 0;
+            }
+            if (type === "right") {
+                padding += isRotated ? (!isFitPadding && isUndefined(paddingOption) ? 10 : 2) : !isAxisShow || isAxisInner ? (isFitPadding ? 2 : 1) : 0;
+                padding += withXAxisTickTextOverflow ? $$.axis.getXAxisTickTextY2Overflow(defaultPadding) : 0;
+            }
+            else if (type === "left" && isRotated && isUndefined(paddingOption)) {
+                padding = !config.axis_x_show ?
+                    1 : (isFitPadding ? axisSize : Math.max(axisSize, 40));
+            }
+        }
+        else {
+            if (type === "top") {
+                if ($el.title && $el.title.node()) {
+                    padding += $$.getTitlePadding();
+                }
+                gap = isRotated && !isAxisInner ? axesLen : 0;
+            }
+            else if (type === "bottom" && hasAxis && isRotated && !isAxisShow) {
+                padding += 1;
+            }
+        }
+        return padding + (axisSize * axesLen) - gap;
+    },
+    getCurrentPadding: function (withXAxisTickTextOverflow) {
+        if (withXAxisTickTextOverflow === void 0) { withXAxisTickTextOverflow = false; }
+        var $$ = this;
+        var _a = ["top", "bottom", "left", "right"]
+            .map(function (v) { return $$.getCurrentPaddingByDirection(v, null, withXAxisTickTextOverflow); }), top = _a[0], bottom = _a[1], left = _a[2], right = _a[3];
+        return { top: top, bottom: bottom, left: left, right: right };
     },
     /**
      * Get resetted padding values when 'padding=false' option is set
@@ -7616,7 +7757,7 @@ var size = {
      * @private
      */
     updateSizes: function (isInit) {
-        var _a, _b, _c;
+        var _a, _b, _c, _d;
         var $$ = this;
         var config = $$.config, state = $$.state, legend = $$.$el.legend;
         var isRotated = config.axis_rotated;
@@ -7630,7 +7771,11 @@ var size = {
         if (!isNonAxis && config.axis_x_show && config.axis_x_tick_autorotate) {
             $$.updateXAxisTickClip();
         }
-        var legendHeightForBottom = state.isLegendRight || state.isLegendInset ? 0 : currLegend.height;
+        var legendSize = {
+            right: config.legend_show && state.isLegendRight ?
+                $$.getLegendWidth() + (isFitPadding ? 0 : 20) : 0,
+            bottom: !config.legend_show || state.isLegendRight || state.isLegendInset ? 0 : currLegend.height
+        };
         var xAxisHeight = isRotated || isNonAxis ? 0 : $$.getHorizontalAxisHeight("x");
         var subchartXAxisHeight = config.subchart_axis_x_show && config.subchart_axis_x_tick_text_show ?
             xAxisHeight : 30;
@@ -7639,17 +7784,17 @@ var size = {
         // when needle is shown with legend, it need some bottom space to not overlap with legend text
         var gaugeHeight = $$.hasType("gauge") && config.arc_needle_show &&
             !config.gauge_fullCircle && !config.gauge_label_show ? 10 : 0;
-        var padding = $$.getCurrentPadding();
+        var padding = $$.getCurrentPadding(true);
         // for main
         state.margin = !isNonAxis && isRotated ? {
-            top: $$.getHorizontalAxisHeight("y2") + padding.top,
-            right: isNonAxis ? 0 : $$.getCurrentPaddingRight(true),
-            bottom: $$.getHorizontalAxisHeight("y") + legendHeightForBottom + padding.bottom,
+            top: padding.top,
+            right: isNonAxis ? 0 : padding.right + legendSize.right,
+            bottom: legendSize.bottom + padding.bottom,
             left: subchartHeight + (isNonAxis ? 0 : padding.left)
         } : {
-            top: (isFitPadding ? 0 : 4) + padding.top,
-            right: isNonAxis ? 0 : $$.getCurrentPaddingRight(true),
-            bottom: gaugeHeight + xAxisHeight + subchartHeight + legendHeightForBottom + padding.bottom,
+            top: (isFitPadding ? 0 : 4) + padding.top, // for top tick text
+            right: isNonAxis ? 0 : padding.right + legendSize.right,
+            bottom: gaugeHeight + subchartHeight + legendSize.bottom + padding.bottom,
             left: isNonAxis ? 0 : padding.left
         };
         state.margin = $$.getResettedPadding(state.margin);
@@ -7657,12 +7802,12 @@ var size = {
         state.margin2 = isRotated ? {
             top: state.margin.top,
             right: NaN,
-            bottom: 20 + legendHeightForBottom,
+            bottom: 20 + legendSize.bottom,
             left: $$.state.rotatedPadding.left
         } : {
-            top: state.current.height - subchartHeight - legendHeightForBottom,
+            top: state.current.height - subchartHeight - legendSize.bottom,
             right: NaN,
-            bottom: subchartXAxisHeight + legendHeightForBottom,
+            bottom: subchartXAxisHeight + legendSize.bottom,
             left: state.margin.left
         };
         // for legend
@@ -7695,12 +7840,13 @@ var size = {
         if ($$.hasArcType()) {
             var hasGauge = $$.hasType("gauge");
             var isLegendRight = config.legend_show && state.isLegendRight;
-            state.arcWidth = state.width - (isLegendRight ? currLegend.width + 10 : 0);
+            var textWidth = (_c = (state.hasRadar && $$.cache.get(KEY.radarTextWidth))) !== null && _c !== void 0 ? _c : 0;
+            state.arcWidth = state.width - (isLegendRight ? currLegend.width + 10 : 0) - textWidth;
             state.arcHeight = state.height - (isLegendRight && !hasGauge ? 0 : 10);
             if (hasGauge && !config.gauge_fullCircle) {
                 state.arcHeight += state.height - $$.getPaddingBottomForGauge();
             }
-            (_c = $$.updateRadius) === null || _c === void 0 ? void 0 : _c.call($$);
+            (_d = $$.updateRadius) === null || _d === void 0 ? void 0 : _d.call($$);
         }
         if (state.isLegendRight && isNonAxis) {
             state.margin3.left = state.arcWidth / 2 + state.radiusExpanded * 1.1;
@@ -7917,7 +8063,7 @@ var text = {
                 }
             }
             value = $$.isTreemapType(d) ? $$.treemapDataLabelFormat(d)(node) :
-                $$.dataLabelFormat(d.id)(value, d.id, i, texts);
+                $$.dataLabelFormat(d.id)(value, d.id, d.index, texts);
             if (isNumber(value)) {
                 this.textContent = value;
             }
@@ -7958,7 +8104,7 @@ var text = {
      * @returns {string|null}
      * @private
      */
-    updateTextBacgroundColor: function (d) {
+    updateTextBackgroundColor: function (d) {
         var $$ = this;
         var $el = $$.$el, config = $$.config;
         var backgroundColor = config.data_labels_backgroundColors;
@@ -7991,7 +8137,7 @@ var text = {
         var rotateString = angle ? "rotate(".concat(angle, ")") : "";
         $$.$el.text
             .style("fill", $$.getStylePropValue($$.updateTextColor))
-            .attr("filter", $$.updateTextBacgroundColor.bind($$))
+            .attr("filter", $$.updateTextBackgroundColor.bind($$))
             .style("fill-opacity", forFlow ? 0 : $$.opacityForText.bind($$))
             .each(function (d, i) {
             // do not apply transition for newly added text elements
@@ -8092,7 +8238,7 @@ var text = {
         if (config.data_labels.centered && (isBarType || isTreemapType)) {
             var rect = getBoundingRect(textElement);
             if (isBarType) {
-                var isPositive = d.value >= 0;
+                var isPositive = $$.getRangedData(d, null, "bar") >= 0;
                 if (isRotated) {
                     var w = (isPositive ?
                         points[1][1] - points[0][1] :
@@ -8535,8 +8681,8 @@ var tooltip$1 = {
                 value = "<b>Open:</b> ".concat(open_1, " <b>High:</b> ").concat(high, " <b>Low:</b> ").concat(low, " <b>Close:</b> ").concat(close_1).concat(volume ? " <b>Volume:</b> ".concat(volume) : "");
             }
             else if ($$.isBarRangeType(row)) {
-                var _d = row.value, start = _d[0], end = _d[1], id = row.id, index = row.index;
-                value = "".concat(valueFormat(start, undefined, id, index), " ~ ").concat(valueFormat(end, undefined, id, index));
+                var rangeValue = row.value, id = row.id, index = row.index;
+                value = "".concat(valueFormat(rangeValue, undefined, id, index));
             }
             else {
                 value = valueFormat.apply(void 0, __spreadArray([getRowValue(row)], param, false));
@@ -8590,16 +8736,33 @@ var tooltip$1 = {
         var $$ = this;
         var config = $$.config, scale = $$.scale, state = $$.state, _c = $$.$el, eventRect = _c.eventRect, tooltip = _c.tooltip;
         var bindto = config.tooltip_contents.bindto;
+        var isRotated = config.axis_rotated;
         var datum = tooltip === null || tooltip === void 0 ? void 0 : tooltip.datum();
         if (!bindto && datum) {
+            var data = dataToShow !== null && dataToShow !== void 0 ? dataToShow : JSON.parse(datum.current);
             var _d = getPointer(state.event, eventTarget !== null && eventTarget !== void 0 ? eventTarget : eventRect === null || eventRect === void 0 ? void 0 : eventRect.node()), x = _d[0], y = _d[1]; // get mouse event position
             var currPos = { x: x, y: y };
-            if (scale.x && datum && "x" in datum) {
-                currPos.xAxis = scale.x(datum.x);
+            if (state.hasAxis && scale.x && datum && "x" in datum) {
+                var getYPos = function (value, id, axisId) {
+                    var _a;
+                    if (value === void 0) { value = 0; }
+                    if (axisId === void 0) { axisId = "y"; }
+                    var scaleFn = scale[id ? (_a = $$.axis) === null || _a === void 0 ? void 0 : _a.getId(id) : axisId];
+                    return scaleFn ? scaleFn(value) + (isRotated ? state.margin.left : state.margin.top) : 0;
+                };
+                currPos.xAxis = scale.x(datum.x) + (
+                // add margin only when user specified tooltip.position function
+                config.tooltip_position ? (isRotated ? state.margin.top : state.margin.left) : 0);
+                if (data.length === 1) {
+                    currPos.yAxis = getYPos(data[0].value, data[0].id);
+                }
+                else {
+                    currPos.yAxis = getYPos;
+                }
             }
             var _e = datum.width, width = _e === void 0 ? 0 : _e, _f = datum.height, height = _f === void 0 ? 0 : _f;
             // Get tooltip position
-            var pos_1 = (_b = (_a = config.tooltip_position) === null || _a === void 0 ? void 0 : _a.bind($$.api)(dataToShow !== null && dataToShow !== void 0 ? dataToShow : JSON.parse(datum.current), width, height, eventRect === null || eventRect === void 0 ? void 0 : eventRect.node(), currPos)) !== null && _b !== void 0 ? _b : $$.getTooltipPosition.bind($$)(width, height, currPos);
+            var pos_1 = (_b = (_a = config.tooltip_position) === null || _a === void 0 ? void 0 : _a.bind($$.api)(data, width, height, eventRect === null || eventRect === void 0 ? void 0 : eventRect.node(), currPos)) !== null && _b !== void 0 ? _b : $$.getTooltipPosition.bind($$)(width, height, currPos);
             ["top", "left"].forEach(function (v) {
                 var value = pos_1[v];
                 tooltip.style(v, "".concat(value, "px"));
@@ -8624,38 +8787,50 @@ var tooltip$1 = {
         var width = state.width, height = state.height, current = state.current, isLegendRight = state.isLegendRight, inputType = state.inputType;
         var hasGauge = $$.hasType("gauge") && !config.gauge_fullCircle;
         var hasTreemap = state.hasTreemap;
+        var hasRadar = state.hasRadar;
         var isRotated = config.axis_rotated;
+        var hasArcType = $$.hasArcType();
         var svgLeft = $$.getSvgLeft(true);
-        var chartRight = svgLeft + current.width - $$.getCurrentPaddingRight();
-        var chartLeft = $$.getCurrentPaddingLeft(true);
+        var chartRight = svgLeft + current.width - $$.getCurrentPaddingByDirection("right");
         var size = 20;
         var x = currPos.x, y = currPos.y;
         // Determine tooltip position
-        if ($$.hasArcType()) {
-            var raw = inputType === "touch" || $$.hasType("radar");
+        if (hasRadar) {
+            x += x >= (width / 2) ? 15 : -(tWidth + 15);
+            y += 15;
+        }
+        else if (hasArcType) {
+            var raw = inputType === "touch";
             if (!raw) {
-                y += hasGauge ? height : height / 2;
                 x += (width - (isLegendRight ? $$.getLegendWidth() : 0)) / 2;
+                y += hasGauge ? height : (height / 2) + tHeight;
             }
         }
-        else if (!hasTreemap) {
+        else if (hasTreemap) {
+            y += tHeight;
+        }
+        else {
+            var padding = {
+                top: $$.getCurrentPaddingByDirection("top", true),
+                left: $$.getCurrentPaddingByDirection("left", true)
+            };
             if (isRotated) {
-                y = currPos.xAxis + size;
-                x += svgLeft;
+                x += svgLeft + padding.left + size;
+                y = padding.top + currPos.xAxis + size;
                 chartRight -= svgLeft;
             }
             else {
-                y -= 5;
-                x = svgLeft + chartLeft + size + (scale.zoom ? x : currPos.xAxis);
+                x = svgLeft + padding.left + size + (scale.zoom ? x : currPos.xAxis);
+                y += padding.top - 5;
             }
         }
         // when tooltip left + tWidth > chart's width
         if ((x + tWidth + 15) > chartRight) {
-            x -= isRotated ? tWidth - chartLeft : tWidth + (hasTreemap ? 0 : chartLeft);
+            x -= tWidth + (hasTreemap || hasArcType ? 0 : (isRotated ? size * 2 : 38));
         }
         if (y + tHeight > current.height) {
-            var gap = hasTreemap ? 0 : 30;
-            y -= hasGauge ? tHeight * 3 : tHeight + gap;
+            var gap = hasTreemap ? tHeight + 10 : 30;
+            y -= hasGauge ? tHeight * 1.5 : tHeight + gap;
         }
         var pos = { top: y, left: x };
         // make sure to not be positioned out of viewport
@@ -8866,7 +9041,7 @@ var transform = {
         }
         else if (target === "y2") {
             x = isRotated ? 0 : state.width + padding;
-            y = isRotated && padding ? 1 - padding : 0;
+            y = isRotated ? -padding - 1 : 0;
         }
         else if (target === "subX") {
             x = 0;
@@ -8881,9 +9056,9 @@ var transform = {
             y = state.arcHeight / 2;
         }
         else if (target === "radar") {
-            var width = $$.getRadarSize()[0];
+            var _a = $$.getRadarSize(), width = _a[0], height = _a[1];
             x = state.width / 2 - width;
-            y = asHalfPixel(state.margin.top);
+            y = state.height / 2 - height;
         }
         return "translate(".concat(x, ", ").concat(y, ")");
     },
@@ -9028,8 +9203,9 @@ var typeInternals = {
      * @private
      */
     isTypeOf: function (d, type) {
+        var _a;
         var id = isString(d) ? d : d.id;
-        var dataType = this.config.data_types[id] || this.config.data_type;
+        var dataType = this.config && (((_a = this.config.data_types) === null || _a === void 0 ? void 0 : _a[id]) || this.config.data_type);
         return isArray(type) ?
             type.indexOf(dataType) >= 0 : dataType === type;
     },
@@ -9203,8 +9379,8 @@ var ChartInternal = /** @class */ (function () {
         this.format = {
             extraLineClasses: null,
             xAxisTick: null,
-            dataTime: null,
-            defaultAxisTime: null,
+            dataTime: null, // dataTimeFormat
+            defaultAxisTime: null, // defaultAxisTimeFormat
             axisTime: null // axisTimeFormat
         };
         var $$ = this;
@@ -12492,6 +12668,7 @@ var AxisRenderer = /** @class */ (function () {
             var r2 = r / (orient === "bottom" ? 15 : 23);
             return r ? 11.5 - 2.5 * r2 * (r > 0 ? 1 : -1) : tickLength;
         };
+        var _b = this.params.owner.config, isRotated = _b.axis_rotated, inner = _b.axis_x_tick_text_inner;
         switch (orient) {
             case "bottom":
                 lineUpdate
@@ -12502,6 +12679,16 @@ var AxisRenderer = /** @class */ (function () {
                     .attr("x", 0)
                     .attr("y", yForText(rotate))
                     .style("text-anchor", textAnchorForText(rotate))
+                    .style("text-anchor", function (d, i, _a) {
+                    var length = _a.length;
+                    if (!isRotated && i === 0 && (inner === true || inner.first)) {
+                        return "start";
+                    }
+                    else if (!isRotated && i === length - 1 && (inner === true || inner.last)) {
+                        return "end";
+                    }
+                    return textAnchorForText(rotate);
+                })
                     .attr("transform", textTransform(rotate));
                 break;
             case "top":
@@ -12766,7 +12953,7 @@ var Axis = /** @class */ (function () {
                 if (v === "x") {
                     res = clip.pathXAxis;
                 }
-                else if (v === "y") { // && config.axis_y_inner) {
+                else if (v === "y") { // || v === "y2") {
                     res = clip.pathYAxis;
                 }
                 return res;
@@ -12885,7 +13072,7 @@ var Axis = /** @class */ (function () {
         // https://github.com/naver/billboard.js/issues/1949
         id === "x" && ($$.scale.zoom || $$.config.subchart_show || $$.state.resizing) ? true : noTransition);
     };
-    // called from : getMaxTickWidth()
+    // called from : getMaxTickSize()
     Axis.prototype.getAxis = function (id, scale, outerTick, noTransition, noTickTextRotate) {
         var $$ = this.owner;
         var config = $$.config;
@@ -13099,7 +13286,7 @@ var Axis = /** @class */ (function () {
         var isRotated = config.axis_rotated;
         var isInner = this.getAxisLabelPosition(id).isInner;
         var tickRotate = config["axis_".concat(id, "_tick_rotate")] ? $$.getHorizontalAxisHeight(id) : 0;
-        var maxTickWidth = this.getMaxTickWidth(id);
+        var maxTickWidth = this.getMaxTickSize(id).width;
         var dy;
         if (id === "x") {
             var xHeight = config.axis_x_height;
@@ -13142,13 +13329,24 @@ var Axis = /** @class */ (function () {
         }
         return dy;
     };
-    Axis.prototype.getMaxTickWidth = function (id, withoutRecompute) {
+    /**
+     * Get max tick size
+     * @param {string} id axis id string
+     * @param {boolean} withoutRecompute wheather or not to recompute
+     * @returns {object} {width, height}
+     * @private
+     */
+    Axis.prototype.getMaxTickSize = function (id, withoutRecompute) {
         var $$ = this.owner;
         var config = $$.config, current = $$.state.current, _a = $$.$el, svg = _a.svg, chart = _a.chart;
-        var currentTickMax = current.maxTickWidths[id];
-        var maxWidth = 0;
-        if (withoutRecompute || !config["axis_".concat(id, "_show")] || (currentTickMax.size > 0 && $$.filterTargetsToShow().length === 0)) {
-            return currentTickMax.size;
+        var currentTickMax = current.maxTickSize[id];
+        var configPrefix = "axis_".concat(id);
+        var max = {
+            width: 0,
+            height: 0
+        };
+        if (withoutRecompute || !config["".concat(configPrefix, "_show")] || (currentTickMax.width > 0 && $$.filterTargetsToShow().length === 0)) {
+            return currentTickMax;
         }
         if (svg) {
             var isYAxis_1 = /^y2?$/.test(id);
@@ -13171,8 +13369,9 @@ var Axis = /** @class */ (function () {
                 currentTickMax.ticks.splice(0);
             }
             var axis = this.getAxis(id, scale, false, false, true);
-            var tickCount = config["axis_".concat(id, "_tick_count")];
-            var tickValues = config["axis_".concat(id, "_tick_values")];
+            var tickRotate = config["".concat(configPrefix, "_tick_rotate")];
+            var tickCount = config["".concat(configPrefix, "_tick_count")];
+            var tickValues = config["".concat(configPrefix, "_tick_values")];
             // Make to generate the final tick text to be rendered
             // https://github.com/naver/billboard.js/issues/920
             // Do not generate if 'tick values' option is given
@@ -13188,33 +13387,39 @@ var Axis = /** @class */ (function () {
                 .style("left", "0");
             axis.create(dummy);
             dummy.selectAll("text")
+                .attr("transform", isNumber(tickRotate) ? "rotate(".concat(tickRotate, ")") : null)
                 .each(function (d, i) {
-                var currentTextWidth = this.getBoundingClientRect().width;
-                maxWidth = Math.max(maxWidth, currentTextWidth);
+                var _a = this.getBoundingClientRect(), width = _a.width, height = _a.height;
+                max.width = Math.max(max.width, width);
+                max.height = Math.max(max.height, height);
                 // cache tick text width for getXAxisTickTextY2Overflow()
                 if (!isYAxis_1) {
-                    currentTickMax.ticks[i] = currentTextWidth;
+                    currentTickMax.ticks[i] = width;
                 }
             });
             dummy.remove();
         }
-        if (maxWidth > 0) {
-            currentTickMax.size = maxWidth;
-        }
-        return currentTickMax.size;
+        Object.keys(max).forEach(function (key) {
+            if (max[key] > 0) {
+                currentTickMax[key] = max[key];
+            }
+        });
+        return currentTickMax;
     };
     Axis.prototype.getXAxisTickTextY2Overflow = function (defaultPadding) {
         var $$ = this.owner;
-        var axis = $$.axis, config = $$.config, state = $$.state;
+        var axis = $$.axis, config = $$.config, _a = $$.state, current = _a.current, isLegendRight = _a.isLegendRight, legendItemWidth = _a.legendItemWidth;
         var xAxisTickRotate = $$.getAxisTickRotate("x");
         var positiveRotation = xAxisTickRotate > 0 && xAxisTickRotate < 90;
         if ((axis.isCategorized() || axis.isTimeSeries()) &&
             config.axis_x_tick_fit &&
-            !config.axis_x_tick_culling &&
+            (!config.axis_x_tick_culling || isEmpty(config.axis_x_tick_culling)) &&
             !config.axis_x_tick_multiline &&
             positiveRotation) {
-            var widthWithoutCurrentPaddingLeft = state.current.width - $$.getCurrentPaddingLeft();
-            var maxOverflow = this.getXAxisTickMaxOverflow(xAxisTickRotate, widthWithoutCurrentPaddingLeft - defaultPadding);
+            var y2AxisWidth = (config.axis_y2_show && current.maxTickSize.y2.width) || 0;
+            var legendWidth = (isLegendRight && legendItemWidth) || 0;
+            var widthWithoutCurrentPaddingLeft = current.width - $$.getCurrentPaddingByDirection("left");
+            var maxOverflow = this.getXAxisTickMaxOverflow(xAxisTickRotate, widthWithoutCurrentPaddingLeft - defaultPadding) - y2AxisWidth - legendWidth;
             var xAxisTickTextY2Overflow = Math.max(0, maxOverflow) +
                 defaultPadding; // for display inconsistencies between browsers
             return Math.min(xAxisTickTextY2Overflow, widthWithoutCurrentPaddingLeft / 2);
@@ -13225,7 +13430,7 @@ var Axis = /** @class */ (function () {
         var $$ = this.owner;
         var axis = $$.axis, config = $$.config, state = $$.state;
         var isTimeSeries = axis.isTimeSeries();
-        var tickTextWidths = state.current.maxTickWidths.x.ticks;
+        var tickTextWidths = state.current.maxTickSize.x.ticks;
         var tickCount = tickTextWidths.length;
         var _a = state.axis.x.padding, left = _a.left, right = _a.right;
         var maxOverflow = 0;
@@ -13453,7 +13658,7 @@ var Axis = /** @class */ (function () {
                 }
                 // set/unset x_axis_tick_clippath
                 if (type === "x") {
-                    var clipPath = current.maxTickWidths.x.clipPath ? clip.pathXAxisTickTexts : null;
+                    var clipPath = current.maxTickSize.x.clipPath ? clip.pathXAxisTickTexts : null;
                     $el.svg.selectAll(".".concat($AXIS.axisX, " .tick text"))
                         .attr("clip-path", clipPath);
                 }
@@ -13627,7 +13832,14 @@ var eventrect = {
         var eventReceiver = state.eventReceiver, width = state.width, height = state.height, rendered = state.rendered, resizing = state.resizing;
         var rectElement = eventRect || $el.eventRect;
         var updateClientRect = function () {
-            eventReceiver && (eventReceiver.rect = rectElement.node().getBoundingClientRect());
+            if (eventReceiver) {
+                var scrollPos = getScrollPosition($el.chart.node());
+                eventReceiver.rect = rectElement.node()
+                    .getBoundingClientRect()
+                    .toJSON();
+                eventReceiver.rect.top += scrollPos.y;
+                eventReceiver.rect.left += scrollPos.x;
+            }
         };
         if (!rendered || resizing || force) {
             rectElement
@@ -13980,11 +14192,12 @@ var eventrect = {
         }
         var mouse = getPointer(state.event, this);
         var closest = $$.findClosestFromTargets(targetsToShow, mouse);
+        var sensitivity = config.point_sensitivity === "radius" ? closest.r : config.point_sensitivity;
         if (!closest) {
             return;
         }
         // select if selection enabled
-        if ($$.isBarType(closest.id) || $$.dist(closest, mouse) < config.point_sensitivity) {
+        if ($$.isBarType(closest.id) || $$.dist(closest, mouse) < sensitivity) {
             $$.$el.main.selectAll(".".concat($SHAPE.shapes).concat($$.getTargetSelectorSuffix(closest.id)))
                 .selectAll(".".concat($SHAPE.shape, "-").concat(closest.index))
                 .each(function () {
@@ -14247,22 +14460,22 @@ var clip = {
         // less than 20 is not enough to show the axis label 'outer' without legend
         var h = (isRotated ? (margin.top + height) + 10 : margin.bottom) + 20;
         var x = isRotated ? -(1 + left) : -(left - 1);
+        var y = -15; // -Math.max(15, margin.top);
         var w = isRotated ? margin.left + 20 : width + 10 + left;
         node
             .attr("x", x)
-            .attr("y", -2)
+            .attr("y", y)
             .attr("width", w)
             .attr("height", h);
     },
     /**
      * Set y Axis clipPath dimension
-     * @param {d3Selecton} node clipPath <rect> selection
+     * @param {d3Selection} node clipPath <rect> selection
      * @private
      */
     setYAxisClipPath: function (node) {
-        var _a;
         var $$ = this;
-        var config = $$.config, _b = $$.state, margin = _b.margin, width = _b.width, height = _b.height;
+        var config = $$.config, _a = $$.state, margin = _a.margin, width = _a.width, height = _a.height;
         var isRotated = config.axis_rotated;
         var left = Math.max(30, margin.left) - (isRotated ? 20 : 0);
         var isInner = config.axis_y_inner;
@@ -14270,7 +14483,7 @@ var clip = {
             (isRotated ? -(1 + left) : -(left - 1));
         var y = -(isRotated ? 20 : margin.top);
         var w = (isRotated ? width + 15 + left : margin.left + 20) + (isInner ? 20 : 0);
-        var h = (isRotated ? margin.bottom + (((_a = config.padding) === null || _a === void 0 ? void 0 : _a.mode) === "fit" ? 10 : 0) : (margin.top + height)) + 10;
+        var h = (isRotated ? margin.bottom + 10 : (margin.top + height)) + 10;
         node
             .attr("x", x)
             .attr("y", y)
@@ -14297,14 +14510,14 @@ var clip = {
     },
     setXAxisTickClipWidth: function () {
         var $$ = this;
-        var config = $$.config, maxTickWidths = $$.state.current.maxTickWidths;
+        var config = $$.config, maxTickSize = $$.state.current.maxTickSize;
         var xAxisTickRotate = $$.getAxisTickRotate("x");
         if (!config.axis_x_tick_multiline && xAxisTickRotate) {
             var sinRotation = Math.sin(Math.PI / 180 * Math.abs(xAxisTickRotate));
-            maxTickWidths.x.clipPath = ($$.getHorizontalAxisHeight("x") - 20) / sinRotation;
+            maxTickSize.x.clipPath = ($$.getHorizontalAxisHeight("x") - 20) / sinRotation;
         }
         else {
-            maxTickWidths.x.clipPath = null;
+            maxTickSize.x.clipPath = null;
         }
     },
     setXAxisTickTextClipPathWidth: function () {
@@ -14312,7 +14525,7 @@ var clip = {
         var _a = $$.state, clip = _a.clip, current = _a.current, svg = $$.$el.svg;
         if (svg) {
             svg.select("#".concat(clip.idXAxisTickTexts, " rect"))
-                .attr("width", current.maxTickWidths.x.clipPath)
+                .attr("width", current.maxTickSize.x.clipPath)
                 .attr("height", 30);
         }
     }
@@ -14587,9 +14800,9 @@ var grid = {
                 // will contain 'x1, y1, x2, y2' order
                 xy = isRotated ?
                     [
-                        null,
-                        pos.x,
-                        isEdge ? pos.y : width,
+                        null, // x1
+                        pos.x, // y1
+                        isEdge ? pos.y : width, // x2
                         pos.x // y2
                     ] : [
                     pos.x,
@@ -14602,9 +14815,9 @@ var grid = {
                 var isY2 = $$.axis.getId(d.id) === "y2";
                 xy = isRotated ?
                     [
-                        pos.y,
-                        isEdge && !isY2 ? pos.x : null,
-                        pos.y,
+                        pos.y, // x1
+                        isEdge && !isY2 ? pos.x : null, // y1
+                        pos.y, // x2
                         isEdge && isY2 ? pos.x : height // y2
                     ] : [
                     isEdge && isY2 ? pos.x : null,
@@ -14845,6 +15058,10 @@ var region = {
     },
 };
 
+/**
+ * Copyright (c) 2017 ~ present NAVER Corp.
+ * billboard.js project is licensed under the MIT license
+ */
 var sizeAxis = {
     /**
      * Get Axis size according its position
@@ -14864,7 +15081,7 @@ var sizeAxis = {
         var $$ = this;
         if ($$.axis) {
             var position = (_a = $$.axis) === null || _a === void 0 ? void 0 : _a.getLabelPositionById(id);
-            var width = $$.axis.getMaxTickWidth(id, withoutRecompute);
+            var width = $$.axis.getMaxTickSize(id, withoutRecompute).width;
             var gap = width === 0 ? 0.5 : 0;
             return width + (((_b = $$.config.padding) === null || _b === void 0 ? void 0 : _b.mode) === "fit" ?
                 position.isInner ? (10 + gap) : 10 :
@@ -14878,16 +15095,17 @@ var sizeAxis = {
         var _a, _b;
         var $$ = this;
         var config = $$.config, state = $$.state;
-        var current = state.current, rotatedPadding = state.rotatedPadding, isLegendRight = state.isLegendRight, isLegendInset = state.isLegendInset;
+        var rotatedPadding = state.rotatedPadding, isLegendRight = state.isLegendRight, isLegendInset = state.isLegendInset;
         var isRotated = config.axis_rotated;
         var isFitPadding = ((_a = config.padding) === null || _a === void 0 ? void 0 : _a.mode) === "fit";
         var isInner = config["axis_".concat(id, "_inner")];
         var hasLabelText = config["axis_".concat(id, "_label")].text;
+        var defaultHeight = 13;
         var h = ((_b = config.padding) === null || _b === void 0 ? void 0 : _b.mode) === "fit" ? (isInner && !hasLabelText ? (id === "y" ? 1 : 0) : 20) : 30;
         if (id === "x" && !config.axis_x_show) {
             return 8;
         }
-        if (id === "x" && config.axis_x_height) {
+        if (id === "x" && isNumber(config.axis_x_height)) {
             return config.axis_x_height;
         }
         if (id === "y" && !config.axis_y_show) {
@@ -14898,17 +15116,10 @@ var sizeAxis = {
         if (id === "y2" && !config.axis_y2_show) {
             return isFitPadding ? 0 : rotatedPadding.top;
         }
-        var rotate = $$.getAxisTickRotate(id);
-        // Calculate x/y axis height when tick rotated
-        if (((id === "x" && !isRotated) || (/y2?/.test(id) && isRotated)) && rotate) {
-            h = 30 +
-                $$.axis.getMaxTickWidth(id) *
-                    Math.cos(Math.PI * (90 - Math.abs(rotate)) / 180);
-            if (!config.axis_x_tick_multiline && current.height) {
-                if (h > current.height / 2) {
-                    h = current.height / 2;
-                }
-            }
+        var maxtickSize = $$.axis.getMaxTickSize(id);
+        var isXAxisTickRotated = config.axis_x_tick_rotate > 0 && (!config.axis_x_tick_autorotate || $$.needToRotateXAxisTickTexts());
+        if ((config.axis_x_tick_multiline || isXAxisTickRotated) && maxtickSize.height > defaultHeight) {
+            h += maxtickSize.height - defaultHeight;
         }
         return h +
             ($$.axis.getLabelPositionById(id).isInner ? 0 : 10) +
@@ -14935,7 +15146,7 @@ var sizeAxis = {
             var allowedXAxisTypes = axis.isCategorized() || axis.isTimeSeries();
             if (config.axis_x_tick_fit && allowedXAxisTypes) {
                 var xTickCount = config.axis_x_tick_count;
-                var currentXTicksLength = state.current.maxTickWidths.x.ticks.length;
+                var currentXTicksLength = state.current.maxTickSize.x.ticks.length;
                 var tickCount = 0;
                 if (xTickCount) {
                     tickCount = xTickCount > currentXTicksLength ? currentXTicksLength : xTickCount;
@@ -14953,10 +15164,10 @@ var sizeAxis = {
                 state.axis.x.tickCount = tickCount;
             }
             if ($el.svg &&
+                config.axis_x_tick_autorotate &&
                 config.axis_x_tick_fit &&
                 !config.axis_x_tick_multiline &&
                 !config.axis_x_tick_culling &&
-                config.axis_x_tick_autorotate &&
                 allowedXAxisTypes) {
                 rotate = $$.needToRotateXAxisTickTexts() ?
                     config.axis_x_tick_rotate : 0;
@@ -14971,14 +15182,15 @@ var sizeAxis = {
      */
     needToRotateXAxisTickTexts: function () {
         var $$ = this;
-        var _a = $$.state, axis = _a.axis, current = _a.current;
-        var xAxisLength = current.width -
-            $$.getCurrentPaddingLeft(false) - $$.getCurrentPaddingRight();
+        var _a = $$.state, axis = _a.axis, current = _a.current, isLegendRight = _a.isLegendRight, legendItemWidth = _a.legendItemWidth;
+        var legendWidth = isLegendRight && legendItemWidth;
+        var xAxisLength = current.width - legendWidth -
+            $$.getCurrentPaddingByDirection("left") - $$.getCurrentPaddingByDirection("right");
         var tickCountWithPadding = axis.x.tickCount +
             axis.x.padding.left + axis.x.padding.right;
-        var maxTickWidth = $$.axis.getMaxTickWidth("x");
+        var width = $$.axis.getMaxTickSize("x").width;
         var tickLength = tickCountWithPadding ? xAxisLength / tickCountWithPadding : 0;
-        return maxTickWidth > tickLength;
+        return width > tickLength;
     }
 };
 
@@ -15023,7 +15235,7 @@ var optDataAxis = {
      *        type: "timeseries"
      *    }
      * }
-     * @see [D3's time specifier](https://github.com/d3/d3-time-format#locale_format)
+     * @see [D3's time specifier](https://d3js.org/d3-time-format#locale_format)
      */
     data_xFormat: "%Y-%m-%d",
     /**
@@ -15241,7 +15453,7 @@ var x = {
      * @memberof Options
      * @type {Function|string}
      * @default undefined
-     * @see [D3's time specifier](https://github.com/d3/d3-time-format#locale_format)
+     * @see [D3's time specifier](https://d3js.org/d3-time-format#locale_format)
      * @example
      * axis: {
      *   x: {
@@ -15373,6 +15585,31 @@ var x = {
      * }
      */
     axis_x_tick_text_show: true,
+    /**
+     * Set the first/last axis tick text to be positioned inside of the chart on non-rotated axis.
+     * @name axis․x․tick․text․inner
+     * @memberof Options
+     * @type {boolean|object}
+     * @default false
+     * @see [Demo](https://naver.github.io/billboard.js/demo/#Axis.XAxisTickInner)
+     * @example
+     * axis: {
+     *   x: {
+     *     tick: {
+     *       text: {
+     *          inner: true,
+     *
+     *          // or specify each position of the first and last tick text
+     *          inner: {
+     *       	   first: true,
+     *       	   last: true
+     *       	}
+     *       }
+     *     }
+     *   }
+     * }
+     */
+    axis_x_tick_text_inner: false,
     /**
      * Set the x Axis tick text's position relatively its original position
      * @name axis․x․tick․text․position
@@ -15549,7 +15786,7 @@ var x = {
      */
     axis_x_tick_width: null,
     /**
-     * Set to display system tooltip(via 'title' attribute) for tick text
+     * Set to display system tooltip(via `<title>` element) for tick text
      * - **NOTE:** Only available for category axis type (`axis.x.type='category'`)
      * @name axis․x․tick․tooltip
      * @memberof Options
@@ -17205,7 +17442,7 @@ var shapeArc = {
         if ($$.shouldShowArcLabel()) {
             selection
                 .style("fill", $$.updateTextColor.bind($$))
-                .attr("filter", $$.updateTextBacgroundColor.bind($$))
+                .attr("filter", $$.updateTextBackgroundColor.bind($$))
                 .each(function (d) {
                 var _a;
                 var node = select(this);
@@ -17930,7 +18167,7 @@ var shapeArea = {
             return [
                 [posX, offset],
                 [posX, posY - (y0 - offset)],
-                [posX, posY - (y0 - offset)],
+                [posX, posY - (y0 - offset)], // needed for compatibility
                 [posX, offset] // needed for compatibility
             ];
         };
@@ -18814,10 +19051,11 @@ var shapePoint = {
         return opacity;
     },
     opacityForCircle: function (d) {
+        var _a;
         var config = this.config;
         var opacity = config.point_opacity;
         if (isUndefined(opacity)) {
-            opacity = config.point_show && !this.isPointFocusOnly() ? null : "0";
+            opacity = config.point_show && !((_a = this.isPointFocusOnly) === null || _a === void 0 ? void 0 : _a.call(this)) ? null : "0";
             opacity = isValue(this.getBaseValue(d)) ?
                 (this.isBubbleType(d) || this.isScatterType(d) ?
                     "0.5" : opacity) : "0";
@@ -18951,7 +19189,7 @@ var shapePoint = {
         var $$ = this;
         var _a = $$.state, hasRadar = _a.hasRadar, resizing = _a.resizing, toggling = _a.toggling, transiting = _a.transiting, $el = $$.$el;
         var circle = $el.circle;
-        if (transiting === false && $$.isPointFocusOnly() && circle) {
+        if (transiting === false && circle && $$.isPointFocusOnly()) {
             var cx = (hasRadar ? $$.radarCircleX : $$.circleX).bind($$);
             var cy = (hasRadar ? $$.radarCircleY : $$.circleY).bind($$);
             var withTransition = toggling || isUndefined(d);
@@ -19084,18 +19322,20 @@ var shapePoint = {
             !$$.hasType("bubble") && !$$.hasType("scatter") && !$$.hasArcType(null, ["radar"]);
     },
     isWithinCircle: function (node, r) {
-        var mouse = getPointer(this.state.event, node);
+        var _a = this, config = _a.config, state = _a.state;
+        var mouse = getPointer(state.event, node);
         var element = select(node);
         var prefix = this.isCirclePoint(node) ? "c" : "";
+        var sensitivity = config.point_sensitivity === "radius" ? node.getAttribute("r") : config.point_sensitivity;
         var cx = +element.attr("".concat(prefix, "x"));
         var cy = +element.attr("".concat(prefix, "y"));
         // if node don't have cx/y or x/y attribute value
         if (!(cx || cy) && node.nodeType === 1) {
-            var _a = getBoundingRect(node), x = _a.x, y = _a.y;
+            var _b = getBoundingRect(node), x = _b.x, y = _b.y;
             cx = x;
             cy = y;
         }
-        return Math.sqrt(Math.pow(cx - mouse[0], 2) + Math.pow(cy - mouse[1], 2)) < (r || this.config.point_sensitivity);
+        return Math.sqrt(Math.pow(cx - mouse[0], 2) + Math.pow(cy - mouse[1], 2)) < (r || sensitivity);
     },
     /**
      * Get data point sensitivity radius
@@ -19182,7 +19422,7 @@ var shapePoint = {
             var point = [posX, posY - (y0 - offset)];
             return [
                 point,
-                point,
+                point, // from here and below, needed for compatibility
                 point,
                 point
             ];
@@ -19440,7 +19680,8 @@ function getPosition(isClockwise, type, edge, pos, range, ratio) {
     return range * (1 - ratio * func(index * r / edge));
 }
 // cache key
-var cacheKey = KEY.radarPoints;
+var cacheKeyPoints = KEY.radarPoints;
+var cacheKeyTextWidth = KEY.radarTextWidth;
 var shapeRadar = {
     initRadar: function () {
         var $$ = this;
@@ -19458,13 +19699,19 @@ var shapeRadar = {
             $el.radar.shapes = $el.radar.append("g")
                 .attr("class", $SHAPE.shapes);
             current.dataMax = config.radar_axis_max || $$.getMinMaxData().max[0].value;
+            if (config.radar_axis_text_show) {
+                config.interaction_enabled && $$.bindRadarEvent();
+                // it needs to calculate dimension at the initialization
+                $$.updateRadarLevel();
+                $$.updateRadarAxes();
+            }
         }
     },
     getRadarSize: function () {
         var $$ = this;
         var config = $$.config, _a = $$.state, arcWidth = _a.arcWidth, arcHeight = _a.arcHeight;
         var padding = config.axis_x_categories.length < 4 ? -20 : 10;
-        var size = (Math.min(arcWidth, arcHeight) - padding) / 2;
+        var size = ((Math.min(arcWidth, arcHeight) - padding) / 2);
         return [size, size];
     },
     updateTargetsForRadar: function (targets) {
@@ -19492,7 +19739,7 @@ var shapeRadar = {
         var $$ = this;
         var targets = $$.data.targets;
         var _a = $$.getRadarSize(), width = _a[0], height = _a[1];
-        var points = $$.cache.get(cacheKey) || {};
+        var points = $$.cache.get(cacheKeyPoints) || {};
         var size = points._size;
         // recalculate position only when the previous dimension has been changed
         if (!size || (size.width !== width && size.height !== height)) {
@@ -19500,7 +19747,7 @@ var shapeRadar = {
                 points[d.id] = d.values.map(function (v, i) { return ($$.getRadarPosition(["x", "y"], i, undefined, $$.getRatio("radar", v))); });
             });
             points._size = { width: width, height: height };
-            $$.cache.add(cacheKey, points);
+            $$.cache.add(cacheKeyPoints, points);
         }
     },
     redrawRadar: function () {
@@ -19518,7 +19765,7 @@ var shapeRadar = {
         }
     },
     generateGetRadarPoints: function () {
-        var points = this.cache.get(cacheKey);
+        var points = this.cache.get(cacheKeyPoints);
         return function (d, i) {
             var point = points[d.id][i];
             return [
@@ -19605,6 +19852,7 @@ var shapeRadar = {
         // axis text
         if (config.radar_axis_text_show) {
             var _b = config.radar_axis_text_position, _c = _b.x, x_1 = _c === void 0 ? 0 : _c, _d = _b.y, y_1 = _d === void 0 ? 0 : _d;
+            var textWidth = $$.cache.get(cacheKeyTextWidth) || 0;
             axis.select("text")
                 .style("text-anchor", "middle")
                 .attr("dy", ".5em")
@@ -19639,54 +19887,57 @@ var shapeRadar = {
                 }
                 return "translate(".concat(posX, " ").concat(posY, ")");
             });
+            if (!textWidth) {
+                var widths = [radar.axes, radar.levels].map(function (v) { return getPathBox(v.node()).width; });
+                if (widths.every(function (v) { return v > 0; })) {
+                    $$.cache.add(cacheKeyTextWidth, widths[0] - widths[1]);
+                }
+            }
         }
-        $$.bindRadarEvent();
     },
     bindRadarEvent: function () {
         var $$ = this;
-        var config = $$.config, state = $$.state, _a = $$.$el, radar = _a.radar, svg = _a.svg;
+        var state = $$.state, _a = $$.$el, radar = _a.radar, svg = _a.svg;
         var focusOnly = $$.isPointFocusOnly();
         var inputType = state.inputType, transiting = state.transiting;
-        if (config.interaction_enabled) {
-            var isMouse_1 = inputType === "mouse";
-            var hide = function (event) {
-                state.event = event;
-                // const index = getIndex(event);
-                var index = $$.getDataIndexFromEvent(event);
-                var noIndex = isUndefined(index);
-                if (isMouse_1 || noIndex) {
-                    $$.hideTooltip();
-                    focusOnly ?
-                        $$.hideCircleFocus() :
-                        $$.unexpandCircles();
-                    if (isMouse_1) {
-                        $$.setOverOut(false, index);
-                    }
-                    else if (noIndex) {
-                        $$.callOverOutForTouch();
-                    }
+        var isMouse = inputType === "mouse";
+        var hide = function (event) {
+            state.event = event;
+            // const index = getIndex(event);
+            var index = $$.getDataIndexFromEvent(event);
+            var noIndex = isUndefined(index);
+            if (isMouse || noIndex) {
+                $$.hideTooltip();
+                focusOnly ?
+                    $$.hideCircleFocus() :
+                    $$.unexpandCircles();
+                if (isMouse) {
+                    $$.setOverOut(false, index);
                 }
-            };
-            radar.axes.selectAll("text")
-                .on(isMouse_1 ? "mouseover " : "touchstart", function (event) {
-                if (transiting) { // skip while transiting
-                    return;
+                else if (noIndex) {
+                    $$.callOverOutForTouch();
                 }
-                state.event = event;
-                var index = $$.getDataIndexFromEvent(event);
-                $$.selectRectForSingle(svg.node(), index);
-                isMouse_1 ? $$.setOverOut(true, index) : $$.callOverOutForTouch(index);
-            })
-                .on("mouseout", isMouse_1 ? hide : null);
-            if (!isMouse_1) {
-                svg.on("touchstart", hide);
             }
+        };
+        radar.axes
+            .on(isMouse ? "mouseover " : "touchstart", function (event) {
+            if (transiting) { // skip while transiting
+                return;
+            }
+            state.event = event;
+            var index = $$.getDataIndexFromEvent(event);
+            $$.selectRectForSingle(svg.node(), index);
+            isMouse ? $$.setOverOut(true, index) : $$.callOverOutForTouch(index);
+        })
+            .on("mouseout", isMouse ? hide : null);
+        if (!isMouse) {
+            svg.on("touchstart", hide);
         }
     },
     updateRadarShape: function () {
         var $$ = this;
         var targets = $$.data.targets.filter(function (d) { return $$.isRadarType(d); });
-        var points = $$.cache.get(cacheKey);
+        var points = $$.cache.get(cacheKeyPoints);
         var areas = $$.$el.radar.shapes
             .selectAll("polygon")
             .data(targets);
@@ -19709,7 +19960,7 @@ var shapeRadar = {
      * @private
      */
     radarCircleX: function (d) {
-        return this.cache.get(cacheKey)[d.id][d.index][0];
+        return this.cache.get(cacheKeyPoints)[d.id][d.index][0];
     },
     /**
      * Get data point y coordinate
@@ -19718,7 +19969,7 @@ var shapeRadar = {
      * @private
      */
     radarCircleY: function (d) {
-        return this.cache.get(cacheKey)[d.id][d.index][1];
+        return this.cache.get(cacheKeyPoints)[d.id][d.index][1];
     }
 };
 
@@ -19754,7 +20005,7 @@ function convertDataToTreemapData(data) {
         var value = values[0].value;
         return {
             name: id,
-            id: id,
+            id: id, // needed to keep compatibility on whole code logic
             value: value,
             ratio: $$.getRatio("treemap", values[0])
         };
@@ -21564,10 +21815,8 @@ var apiSubchart = {
 // NOTE: declared funciton assigning to variable to prevent duplicated method generation in JSDoc.
 var zoom$1 = function (domainValue) {
     var _a;
-    var _b;
     var $$ = this.internal;
-    var $el = $$.$el, axis = $$.axis, config = $$.config, org = $$.org, scale = $$.scale, state = $$.state;
-    var isRotated = config.axis_rotated;
+    var axis = $$.axis, config = $$.config, org = $$.org, scale = $$.scale, state = $$.state;
     var isCategorized = axis.isCategorized();
     var domain;
     if (config.zoom_enabled) {
@@ -21579,9 +21828,7 @@ var zoom$1 = function (domainValue) {
             var isWithinRange = $$.withinRange(domain, $$.getZoomDomain("zoom", true), $$.getZoomDomain("zoom"));
             if (isWithinRange) {
                 state.domain = domain;
-                if (isCategorized) {
-                    domain = domain.map(function (v, i) { return Number(v) + (i === 0 ? 0 : 1); });
-                }
+                domain = $$.getZoomDomainValue(domain);
                 // hide any possible tooltip show before the zoom
                 $$.api.tooltip.hide();
                 if (config.subchart_show) {
@@ -21592,14 +21839,7 @@ var zoom$1 = function (domainValue) {
                 else {
                     // in case of 'config.zoom_rescale=true', use org.xScale
                     var x = isCategorized ? scale.x.orgScale() : (org.xScale || scale.x);
-                    // Get transform from given domain value
-                    // https://github.com/d3/d3-zoom/issues/57#issuecomment-246434951
-                    var translate = [-x(domain[0]), 0];
-                    var transform = (_a = zoomIdentity
-                        .scale(x.range()[1] / (x(domain[1]) - x(domain[0]))))
-                        .translate.apply(_a, (isRotated ? translate.reverse() : translate));
-                    $el.eventRect
-                        .call($$.zoom.transform, transform);
+                    $$.updateCurrentZoomTransform(x, domain);
                 }
                 $$.setZoomResetButton();
             }
@@ -21608,7 +21848,7 @@ var zoom$1 = function (domainValue) {
             domain = $$.zoom.getDomain();
         }
     }
-    return (_b = state.domain) !== null && _b !== void 0 ? _b : domain;
+    return (_a = state.domain) !== null && _a !== void 0 ? _a : domain;
 };
 extend(zoom$1, {
     /**
@@ -21726,8 +21966,8 @@ var apiZoom = {
      */
     unzoom: function () {
         var $$ = this.internal;
-        var config = $$.config, _a = $$.$el, eventRect = _a.eventRect, zoomResetBtn = _a.zoomResetBtn, state = $$.state;
-        if ($$.scale.zoom) {
+        var config = $$.config, _a = $$.$el, eventRect = _a.eventRect, zoomResetBtn = _a.zoomResetBtn, zoom = $$.scale.zoom, state = $$.state;
+        if (zoom) {
             config.subchart_show ?
                 $$.brush.getSelection().call($$.brush.move, null) :
                 $$.zoom.updateTransformScale(zoomIdentity);
@@ -21970,6 +22210,7 @@ var selection = _assign(_assign({}, drag), {
      * @private
      */
     toggleShape: function (that, d, i) {
+        var _a;
         var $$ = this;
         var config = $$.config, main = $$.$el.main;
         if (config.data_selection_enabled && config.data_selection_isselectable.bind($$.api)(d)) {
@@ -21978,7 +22219,7 @@ var selection = _assign(_assign({}, drag), {
             var toggle_1 = $$.getToggle(that, d).bind($$);
             var toggledShape_1;
             if (!config.data_selection_multiple) {
-                var focusOnly = $$.isPointFocusOnly();
+                var focusOnly = (_a = $$.isPointFocusOnly) === null || _a === void 0 ? void 0 : _a.call($$);
                 var selector = ".".concat(focusOnly ? $SELECT.selectedCircles : $SHAPE.shapes);
                 if (config.data_selection_grouped) {
                     selector += $$.getTargetSelectorSuffix(d.id);
@@ -22418,6 +22659,10 @@ var zoom = {
                 !org.xScale && (org.xScale = scale.x.copy());
                 scale.x.domain(domain);
             }
+            else if (org.xScale) {
+                scale.x.domain(org.xScale.domain());
+                org.xScale = null;
+            }
         };
         /**
          * Get zoom domain
@@ -22540,6 +22785,25 @@ var zoom = {
         }
     },
     /**
+     * Set zoom transform to event rect
+     * @param {Function} x x Axis scale function
+     * @param {Array} domain Domain value to be set
+     * @private
+     */
+    updateCurrentZoomTransform: function (x, domain) {
+        var _a;
+        var $$ = this;
+        var eventRect = $$.$el.eventRect, config = $$.config;
+        var isRotated = config.axis_rotated;
+        // Get transform from given domain value
+        // https://github.com/d3/d3-zoom/issues/57#issuecomment-246434951
+        var translate = [-x(domain[0]), 0];
+        var transform = (_a = zoomIdentity
+            .scale(x.range()[1] / (x(domain[1]) - x(domain[0]))))
+            .translate.apply(_a, (isRotated ? translate.reverse() : translate));
+        eventRect.call($$.zoom.transform, transform);
+    },
+    /**
      * Attach zoom event on <rect>
      * @private
      */
@@ -22550,9 +22814,7 @@ var zoom = {
         // Since Chrome 89, wheel zoom not works properly
         // Applying the workaround: https://github.com/d3/d3-zoom/issues/231#issuecomment-802305692
         $$.$el.svg.on("wheel", function () { });
-        eventRect
-            .call(behaviour)
-            .on("dblclick.zoom", null);
+        eventRect === null || eventRect === void 0 ? void 0 : eventRect.call(behaviour).on("dblclick.zoom", null);
     },
     /**
      * Initialize the drag behaviour used for zooming.
@@ -22960,7 +23222,7 @@ var zoomModule = function () {
 var defaults = {};
 /**
  * @namespace bb
- * @version 3.9.4-nightly-20230912012910
+ * @version 3.10.3-nightly-20240120013623
  */
 var bb = {
     /**
@@ -22970,7 +23232,7 @@ var bb = {
      *    bb.version;  // "1.0.0"
      * @memberof bb
      */
-    version: "3.9.4-nightly-20230912012910",
+    version: "3.10.3-nightly-20240120013623",
     /**
      * Generate chart
      * - **NOTE:** Bear in mind for the possiblity of ***throwing an error***, during the generation when:

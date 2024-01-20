@@ -5,7 +5,7 @@
  * billboard.js, JavaScript chart library
  * https://naver.github.io/billboard.js/
  * 
- * @version 3.9.4-nightly-20230912012910
+ * @version 3.10.3-nightly-20240120013623
  * @requires billboard.js
  * @summary billboard.js plugin
 */
@@ -121,7 +121,7 @@ var Plugin = /** @class */ (function () {
             delete _this[key];
         });
     };
-    Plugin.version = "3.9.4-nightly-20230912012910";
+    Plugin.version = "3.10.3-nightly-20240120013623";
     return Plugin;
 }());
 var Plugin$1 = Plugin;
@@ -222,12 +222,21 @@ var Options = /** @class */ (function () {
              * @example
              *   legendToggleUpdate: false
              */
-            updateOnToggle: true
+            updateOnToggle: true,
+            /**
+             * Set how null value to be shown.
+             * @name nullString
+             * @memberof plugin-tableview
+             * @type {string}
+             * @default "-"
+             * @example
+             *   nullString: "N/A"
+             */
+            nullString: "-"
         };
     }
     return Options;
 }());
-var Options$1 = Options;
 
 /**
  * Copyright (c) 2021 ~ present NAVER Corp.
@@ -448,7 +457,8 @@ function loadConfig(config) {
  *          class: "my-class-name",
  *          style: true,
  *          title: "My Data List",
- *          updateOnToggle: false
+ *          updateOnToggle: false,
+ *          nullString: "N/A"
  *        }),
  *     ]
  *  });
@@ -467,7 +477,7 @@ var TableView = /** @class */ (function (_super) {
     __extends(TableView, _super);
     function TableView(options) {
         var _this = _super.call(this, options) || this;
-        _this.config = new Options$1();
+        _this.config = new Options();
         return _this;
     }
     TableView.prototype.$beforeInit = function () {
@@ -525,7 +535,7 @@ var TableView = /** @class */ (function (_super) {
             tbody += "<tr>".concat(v.map(function (d, i) { return tplProcess(i ? tpl.tbody : tpl.tbodyHeader, {
                 value: i === 0 ?
                     config.categoryFormat.bind(_this)(d) :
-                    (isNumber(d) ? d.toLocaleString() : "")
+                    (isNumber(d) ? d.toLocaleString() : config.nullString)
             }); }).join(""), "</tr>");
         });
         var rx = /(<\/?(script|img)[^>]*>|<[^>]+><\/[^>]+>)/ig;

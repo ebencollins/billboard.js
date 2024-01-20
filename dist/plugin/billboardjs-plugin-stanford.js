@@ -5,7 +5,7 @@
  * billboard.js, JavaScript chart library
  * https://naver.github.io/billboard.js/
  *
- * @version 3.9.4-nightly-20230912012910
+ * @version 3.10.3-nightly-20240120013623
  * @requires billboard.js
  * @summary billboard.js plugin
  */
@@ -167,27 +167,27 @@ function _typeof(o) {
 }
 ;// CONCATENATED MODULE: ./node_modules/@babel/runtime/helpers/esm/toPrimitive.js
 
-function _toPrimitive(input, hint) {
-  if (_typeof(input) !== "object" || input === null) return input;
-  var prim = input[Symbol.toPrimitive];
-  if (prim !== undefined) {
-    var res = prim.call(input, hint || "default");
-    if (_typeof(res) !== "object") return res;
+function toPrimitive(t, r) {
+  if ("object" != _typeof(t) || !t) return t;
+  var e = t[Symbol.toPrimitive];
+  if (void 0 !== e) {
+    var i = e.call(t, r || "default");
+    if ("object" != _typeof(i)) return i;
     throw new TypeError("@@toPrimitive must return a primitive value.");
   }
-  return (hint === "string" ? String : Number)(input);
+  return ("string" === r ? String : Number)(t);
 }
 ;// CONCATENATED MODULE: ./node_modules/@babel/runtime/helpers/esm/toPropertyKey.js
 
 
-function _toPropertyKey(arg) {
-  var key = _toPrimitive(arg, "string");
-  return _typeof(key) === "symbol" ? key : String(key);
+function toPropertyKey(t) {
+  var i = toPrimitive(t, "string");
+  return "symbol" == _typeof(i) ? i : String(i);
 }
 ;// CONCATENATED MODULE: ./node_modules/@babel/runtime/helpers/esm/defineProperty.js
 
 function _defineProperty(obj, key, value) {
-  key = _toPropertyKey(key);
+  key = toPropertyKey(key);
   if (key in obj) {
     Object.defineProperty(obj, key, {
       value: value,
@@ -399,15 +399,17 @@ function getGlobal() {
  */
 function getFallback(w) {
   var _this = this;
-  const hasRAF = typeof (w == null ? void 0 : w.requestAnimationFrame) === "function",
-    hasRIC = typeof (w == null ? void 0 : w.requestIdleCallback) === "function";
-  return [hasRAF ? w.requestAnimationFrame : function (cb) {
-    _newArrowCheck(this, _this);
-    return setTimeout(cb, 1);
-  }.bind(this), hasRAF ? w.cancelAnimationFrame : function (id) {
-    _newArrowCheck(this, _this);
-    return clearTimeout(id);
-  }.bind(this), hasRIC ? w.requestIdleCallback : requestAnimationFrame, hasRIC ? w.cancelIdleCallback : cancelAnimationFrame];
+  const hasRAF = typeof (w == null ? void 0 : w.requestAnimationFrame) === "function" && typeof (w == null ? void 0 : w.cancelAnimationFrame) === "function",
+    hasRIC = typeof (w == null ? void 0 : w.requestIdleCallback) === "function" && typeof (w == null ? void 0 : w.cancelIdleCallback) === "function",
+    request = function (cb) {
+      _newArrowCheck(this, _this);
+      return setTimeout(cb, 1);
+    }.bind(this),
+    cancel = function (id) {
+      _newArrowCheck(this, _this);
+      return clearTimeout(id);
+    }.bind(this);
+  return [hasRAF ? w.requestAnimationFrame : request, hasRAF ? w.cancelAnimationFrame : cancel, hasRIC ? w.requestIdleCallback : request, hasRIC ? w.cancelIdleCallback : cancel];
 }
 const win = getGlobal(),
   doc = win == null ? void 0 : win.document,
@@ -957,6 +959,20 @@ function getCssRules(styleSheets) {
 }
 
 /**
+ * Get current window and container scroll position
+ * @param {HTMLElement} node Target element
+ * @returns {object} window scroll position
+ * @private
+ */
+function getScrollPosition(node) {
+  var _ref2, _ref3, _window$pageXOffset, _ref4, _ref5, _window$pageYOffset;
+  return {
+    x: (_ref2 = ((_ref3 = (_window$pageXOffset = win.pageXOffset) != null ? _window$pageXOffset : win.scrollX) != null ? _ref3 : 0) + node.scrollLeft) != null ? _ref2 : 0,
+    y: (_ref4 = ((_ref5 = (_window$pageYOffset = win.pageYOffset) != null ? _window$pageYOffset : win.scrollY) != null ? _ref5 : 0) + node.scrollTop) != null ? _ref4 : 0
+  };
+}
+
+/**
  * Gets the SVGMatrix of an SVGGElement
  * @param {SVGElement} node Node element
  * @returns {SVGMatrix} matrix
@@ -1412,7 +1428,7 @@ let Plugin = /*#__PURE__*/function () {
   };
   return Plugin;
 }();
-Plugin.version = "3.9.4-nightly-20230912012910";
+Plugin.version = "3.10.3-nightly-20240120013623";
 
 ;// CONCATENATED MODULE: ./src/Plugin/stanford/Options.ts
 /**
@@ -2041,10 +2057,12 @@ let Stanford = /*#__PURE__*/function (_Plugin) {
       _newArrowCheck(this, _this2);
       return 1;
     }.bind(this);
-    const getCurrentPaddingRight = $$.getCurrentPaddingRight.bind($$);
-    $$.getCurrentPaddingRight = function () {
+    const getCurrentPadding = $$.getCurrentPadding.bind($$);
+    $$.getCurrentPadding = function () {
       _newArrowCheck(this, _this2);
-      return getCurrentPaddingRight() + (this.colorScale ? this.colorScale.getColorScalePadding() : 0);
+      const padding = getCurrentPadding();
+      padding.right += this.colorScale ? this.colorScale.getColorScalePadding() : 0;
+      return padding;
     }.bind(this);
   };
   _proto.$init = function $init() {
@@ -2057,6 +2075,7 @@ let Stanford = /*#__PURE__*/function (_Plugin) {
     this.initStanfordData();
     this.setStanfordTooltip();
     this.colorScale.drawColorScale();
+    $$.right += this.colorScale ? this.colorScale.getColorScalePadding() : 0;
     this.$redraw();
   };
   _proto.$redraw = function $redraw(duration) {
