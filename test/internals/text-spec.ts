@@ -9,7 +9,7 @@ import {select as d3Select} from "d3-selection";
 import {format as d3Format} from "d3-format";
 import util from "../assets/util";
 import {$AXIS, $SHAPE, $TEXT} from "../../src/config/classes";
-import {isNumber} from "../../src/module/util";
+import {isArray, isNumber, isObject} from "../../src/module/util";
 
 describe("TEXT", () => {
 	let chart;
@@ -426,6 +426,97 @@ describe("TEXT", () => {
 			});
 		});
 
+		describe("on ranged value(AreaRange/Bar range) chart", () => {
+			before(() => {
+				args = {
+					data: {
+						columns: [
+							["data1", 
+								[150, 140, 110],
+								[155, 130, 115],
+								[160, 135, 120],
+							],
+							["data2", [230, 340], 200, [-100, -50]],
+							["data3",
+								{high: 155, low: 145, mid: 150},
+								{high: 200, mid: 190, low: 150},
+								{high: 230, mid: 215, low: 200}
+							]
+						],
+						types: {
+							data1: "area-line-range",
+							data2: "bar",
+							data3: "area-line-range"
+						},
+						labels: {
+							colors: "black"
+						}
+					}
+				};
+			});
+
+			it("should data labels rendered correctly", () => {
+				chart.$.text.texts.each(function(d) {
+					let text = String(d.value);
+
+					if (isArray(d.value)) {
+						text = d.value.join("~");
+					} else if (isObject(d.value)) {
+						text = Object.values(d.value).join("~");
+					}
+
+					expect(this.textContent).to.be.equal(text);
+				});
+			});
+
+			it("set option: data.labels.centered=true / data.labels.format", () => {
+				args.data.labels.centered = true;
+
+				args.data.labels.format = function(value, id, index) {
+					let v = value;
+					const delimiter = "/";
+	
+					if (Array.isArray(value)) {
+						v = value.join(delimiter);
+					} else if (typeof value === "object") {
+						v = Object.values(v).join(delimiter);
+					}
+	
+					return v;
+				};
+			});
+
+			it("should locate data labels in correct position and formatted correctly", () => {
+				const {$: {bar, text}} = chart;
+				const barText: number[] = [];
+				const delimiter = "/";
+
+				text.texts.each(function(d) {
+					let text = String(d.value);
+
+					if (isArray(d.value)) {
+						text = d.value.join(delimiter);
+					} else if (isObject(d.value)) {
+						text = Object.values(d.value).join(delimiter);
+					}
+
+					expect(this.textContent).to.be.equal(text);
+
+					if (d.id === "data2") {
+						barText.push(+this.getAttribute("y"));
+					}
+				});
+
+				// check labels centered
+				bar.bars.each(function(d, i) {
+					const rect = this.getBoundingClientRect();
+
+					expect(barText[i]).to.be.closeTo((rect.height / 2) + rect.top, 2);
+
+				});
+			});
+		});
+
 		describe("for all targets", () => {
 			before(() => {
 				args = {
@@ -561,6 +652,8 @@ describe("TEXT", () => {
 			});
 
 			describe("as function", () => {
+				const temp: any = [];
+
 				before(() => {
 					args = {
 						data: {
@@ -592,6 +685,29 @@ describe("TEXT", () => {
 					main.selectAll(`.${$TEXT.texts}-data3 text`).each(function() {
 						expect(d3Select(this).text()).to.equal("");
 					});
+				});
+
+				it("set options", () => {
+					args = {
+						data: {
+							columns: [
+								["data1", 10, 100, null, 150, 200]
+							],
+							labels: {
+								format: (value, seriesName, columnIndex) => {																	
+									if (seriesName) {
+										temp.push(columnIndex);
+									}
+
+									return value;
+								}
+							}
+						}
+					}
+				});
+
+				it("index argument should count nullish value", () => {
+					expect(temp).to.be.deep.equal([0, 1, 3, 4]);					
 				});
 			});
 		});
@@ -678,18 +794,19 @@ describe("TEXT", () => {
 					args.axis = {
 						rotated: true
 					};
+					args.data.labels = true;
 				});
 
 				it("should have y domain with proper padding #1", () => {
 					const domain = chart.internal.scale.y.domain();
 
 					expect(domain[0]).to.be.closeTo(0, 1);
-					expect(domain[1]).to.be.closeTo(231.5, 1);
+					expect(domain[1]).to.be.closeTo(228, 1);
 				});
 
 				it("should locate labels above each data point", () => {
-					const expectedYs = [51, 145, 235, 327];
-					const expectedXs = [488.5, 514, 488.5, 4];
+					const expectedXs = [495.5, 520, 495, 4];
+					const expectedYs = [55, 155, 256, 327];
 
 					chart.$.main.selectAll(`.${$TEXT.texts}-data1 text`)
 						.each(checkXY(expectedXs, expectedYs, "", 4));
@@ -707,8 +824,8 @@ describe("TEXT", () => {
 				});
 
 				it("should locate labels above each data point", () => {
-					const expectedYs = [9, 130, 249, 370];
-					const expectedXs = [76, 526, 76, 4];
+					const expectedXs = [72, 530, 72, 4];
+					const expectedYs = [9, 140, 272, 370];
 
 					chart.$.main.selectAll(`.${$TEXT.texts}-data1 text`)
 						.each(checkXY(expectedXs, expectedYs, "", 4));
@@ -791,8 +908,8 @@ describe("TEXT", () => {
 				});
 
 				it("should locate labels above each data point", () => {
-					const expectedYs = [57, 162, 269, 375];
-					const expectedXs = [80, 584, 80, 514];
+					const expectedXs = [80, 584, 83, 514];
+					const expectedYs = [57, 174, 287, 375];
 
 					chart.$.main.selectAll(`.${$TEXT.texts}-data1 text`)
 						.each(checkXY(expectedXs, expectedYs, "", {x: 10, y: 5}));
@@ -812,8 +929,8 @@ describe("TEXT", () => {
 				});
 
 				it("should locate labels above each data point", () => {
-					const expectedYs = [9, 147, 286, 424];
-					const expectedXs = [69, 527, 69, 527]; // 72.50132230092231
+					const expectedXs = [72, 527, 72, 527]; // 72.50132230092231
+					const expectedYs = [9, 157, 305, 434];
 
 					chart.$.main.selectAll(`.${$TEXT.texts}-data1 text`)
 						.each(checkXY(expectedXs, expectedYs, "", {x: 4, y: 2}));

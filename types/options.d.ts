@@ -423,6 +423,11 @@ export interface LegendOptions {
 	hide?: boolean | string[] | string;
 
 	/**
+	 * Set to all items have same width size.
+	 */
+	equally?: boolean;
+
+	/**
 	 * Change the position of legend.
 	 * Currently bottom, right and inset are supported.
 	 */
@@ -441,10 +446,6 @@ export interface LegendOptions {
 		y?: number;
 		step?: number;
 	};
-	/**
-	 * Padding between legend elements.
-	 */
-	padding?: number;
 
 	item?: {
 		/**
@@ -535,6 +536,21 @@ export interface LegendOptions {
 	};
 
 	/**
+	 * Padding between legend elements.
+	 */
+	padding?: number;
+
+	/**
+	 * Set formatter function for legend text.
+	 */
+	format?: (id: string) => string;
+
+	/**
+	 * Show full legend text value using system tooltip(via 'title' element).
+	 */
+	tooltip?: boolean;
+
+	/**
 	 * Whether to use custom points in legend.
 	 */
 	usePoint?: boolean;
@@ -598,6 +614,7 @@ export interface TooltipOptions {
 			x: number;
 			y: number;
 			xAxis?: number;
+			yAxis?: number | ((value: number, id?: string, axisId?: string) => number);
 		}
 	) => { top: number; left: number });
 
@@ -730,6 +747,14 @@ export interface SubchartOptions {
 					 * Show or hide x axis tick text.
 					 */
 					show?: boolean;
+
+					/**
+					 * 	 * Set the first/last axis tick text to be positioned inside of the chart on non-rotated axis.
+					 */
+					inner?: boolean | {
+						first?: boolean;
+						last?: boolean;
+					}
 				};
 			};
 		};

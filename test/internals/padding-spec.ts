@@ -8,7 +8,7 @@ import sinon from "sinon";
 import util from "../assets/util";
 import {$AXIS} from "../../src/config/classes";
 
-describe("PADDING", function() {
+describe("PADDING", () => {
 	let chart;
 	let args: any = {
 		svg: {
@@ -26,7 +26,7 @@ describe("PADDING", function() {
 	const deepEqual = (val, print=false) => {
 		const {margin} = chart.internal.state;
 		
-		print && console.log(margin);
+		print && console.log(`val: ${JSON.stringify(val)}`, `margin: ${JSON.stringify(margin)}`);
 		expect(margin).to.deep.equal(val);
 	};
 
@@ -320,6 +320,18 @@ describe("PADDING", function() {
 			it("when legend is hidden", () => {
 				deepEqual({top: 4, right: 21, bottom: 30, left: 20});
 			});
+
+			it("set options: padding.bottom=0", () => {
+				args.padding = {
+					bottom: 0
+				};
+			});
+
+			it("bottom x axis won't be shown", () => {
+				deepEqual({top: 4, right: 21, bottom: 0, left: 20});	
+				
+				args.padding = {};
+			});
 		});
 
 		//----- rotated axis
@@ -356,6 +368,38 @@ describe("PADDING", function() {
 
 			it("rotated axis: outer y axis only without axis label text", () => {
 				deepEqual({top: 5, right: 10, bottom: 30, left: 40});
+			});
+
+			it("set options: padding.top=0, padding.bottom=0", () => {
+				args.axis.y2.show = true;
+				args.legend.show = false;
+				args.padding = {
+					top: 0,
+					bottom: 0
+				};
+			});
+
+			it("rotated axis: y & y2 axes should be hidden", () => {
+				const {$el} = chart.internal;
+				const chartRect = $el.chart.node().getBoundingClientRect();
+
+				expect(chartRect.top).to.be.above($el.axis.y2.node().getBoundingClientRect().bottom);
+				expect(chartRect.bottom).to.be.below($el.axis.y.node().getBoundingClientRect().top);
+			});
+
+			it("set options: padding.top=1, padding.bottom=1", () => {
+				args.padding = {
+					top: 1,
+					bottom: 1
+				};
+			});
+
+			it("rotated axis: y & y2 axes should show axes line within 1px range", () => {
+				const {$el} = chart.internal;
+				const chartRect = $el.chart.node().getBoundingClientRect();
+
+				expect(chartRect.top).to.be.closeTo($el.axis.y2.node().getBoundingClientRect().bottom, 1);
+				expect(chartRect.bottom).to.be.closeTo($el.axis.y.node().getBoundingClientRect().top, 1);
 			});
 		});
 	});
@@ -440,7 +484,7 @@ describe("PADDING", function() {
 			});
 
 			it("inner y2 axis with outer label text", () => {
-				deepEqual({top: 0, right: 21, bottom: 30, left: 20});
+				deepEqual({top: 0, right: 22, bottom: 30, left: 20});
 			});
 
 			it("set options: axis.y.label = {}", () => {
@@ -448,7 +492,7 @@ describe("PADDING", function() {
 			});
 
 			it("inner y axis without outer label text", () => {
-				deepEqual({top: 0, right: 21, bottom: 30, left: 0});
+				deepEqual({top: 0, right: 22, bottom: 30, left: 0});
 			});
 
 			it("set options: axis.y2.label = {}", () => {
@@ -456,7 +500,7 @@ describe("PADDING", function() {
 			});
 
 			it("inner y/y2 axes without outer label text", () => {
-				deepEqual({top: 0, right: 1, bottom: 30, left: 0});
+				deepEqual({top: 0, right: 2, bottom: 30, left: 0});
 			});
 
 			it("set options: legend.show=false", () => {
@@ -464,12 +508,12 @@ describe("PADDING", function() {
 			});
 
 			it("inner y/y2 axes without outer label text and without legend", () => {
-				deepEqual({top: 0, right: 1, bottom: 20, left: 0});
+				deepEqual({top: 0, right: 2, bottom: 20, left: 0});
 			});
 
 			it("set options: padding", () => {
 				temp = chart.internal.state.margin;
-
+				
 				args.padding = {
 					mode: "fit",
 					top: 0,
@@ -478,9 +522,11 @@ describe("PADDING", function() {
 					right: 0
 				};
 			});
-
+			
 			it("specifying padding should be relative.", () => {
-				expect(chart.internal.state.margin).to.deep.equal(temp);
+				const {state: {margin}} = chart.internal;
+
+				expect(margin).to.deep.equal(temp);
 			});
 
 			it("set options", () => {
@@ -502,7 +548,39 @@ describe("PADDING", function() {
 
 			it("when y is shown, y2 hidden and padding.right=0", () => {
 				deepEqual({top: 0, right: 2, bottom: 30, left: 28.359375});
+			});
 
+			it("set options", () => {
+				args = {
+					data: {
+						columns: [
+							["data1", 51130, 12300, 23140]
+						],
+						type: "bar"
+					  },
+					padding: {
+						mode: "fit",
+						right: 0
+					},
+					legend: {
+						position: "right"
+					},
+					axis: {    
+						y2: {
+							show: true
+						}
+					}
+				}
+			});
+
+			it("legend in right position, shouldn't have gap with y2 axis in 'fit' mode", () => {
+				const {$el: {axis, legend}} = chart.internal;
+
+				const y2Right = axis.y2.node().getBoundingClientRect().right;
+				const legendLeft = legend.node().getBoundingClientRect().left + 2;
+
+				expect(legendLeft).to.be.closeTo(y2Right, 0.5);
+				
 				// restore args
 				args = temp;
 			});

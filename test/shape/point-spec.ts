@@ -4,9 +4,11 @@
  */
 /* eslint-disable */
 /* global describe, beforeEach, it, expect */
+import sinon from "sinon";
 import {expect} from "chai";
 import util from "../assets/util";
 import {$CIRCLE} from "../../src/config/classes";
+import {fireEvent} from "../assets/helper";
 
 describe("SHAPE POINT", () => {
 	let chart;
@@ -142,6 +144,44 @@ describe("SHAPE POINT", () => {
 		it("custom point's position for null data shoudn't be set as NaN", () => {
 			expect(chart.$.circles.filter(":last-child").attr("y")).to.not.equal("NaN");
 		});
+
+		it("set optiosn", () => {
+			args = {
+				data: {
+					columns: [
+						["data1", 30, 200, 100, 400, -150, 250],
+						["data 2", 50, 20, 10, 40, 15, 25],
+						["data3", -150, 120, 110, 140, 115, 125]
+					],
+					selection: {
+						enabled: true
+					}
+				},
+				point: {
+					pattern: [
+						"<polygon points='2.5 0 0 5 5 5'></polygon>"
+					]
+				}
+			};
+		});
+
+		it("", done => {
+			const target = {
+				id: "data3",
+				index: 2
+			};
+
+			// when
+			chart.select(target.id, [target.index], true);
+			chart.hide(target.id);
+
+			setTimeout(() => {
+				const point = chart.$.circles.filter(d => d.id === target.id && d.index == target.index).node();
+
+				expect(point.parentNode.style.opacity).to.be.equal("0");
+				done();
+			}, 300);
+		});
 	});
 
 	describe("point transition", () => {
@@ -189,21 +229,35 @@ describe("SHAPE POINT", () => {
 	});
 
 	describe("point sensitivity", () => {
+		const spy = sinon.spy();
+
 		function checkHover({circle, eventRect}, values, index, sensitivity = 0) {
 			const node = circle.nodes()[index];
 			const x = +node.getAttribute("cx");
 			const y = +node.getAttribute("cy");
 			const r = +node.getAttribute("r");
 
+			const clientX = x + (sensitivity || r);
+			const clientY = y;
+
 			util.hoverChart(chart, "mousemove", {
-				clientX: x + (sensitivity || r),
-				clientY: y
+				clientX, clientY
 			});
 
 			expect(+chart.$.tooltip.select(".value").text())
 				.to.be.equal(values[index]);
 
 			expect(eventRect.style("cursor")).to.be.equal("pointer");
+
+			if (chart.config("point.sensitivity") === "radius") {
+				fireEvent(eventRect.node(), "click", {
+					clientX, clientY
+				}, chart);
+
+				expect(spy.calledOnce).to.be.true;
+
+				spy.resetHistory();
+			}
 		}
 
 		before(() => {
@@ -254,7 +308,8 @@ describe("SHAPE POINT", () => {
 				  columns: [
 					  ["data1", 10, 100, 300]
 				  ],
-				  type: "bubble"
+				  type: "bubble",
+				  onclick: spy
 				},
 				point: {
 					sensitivity: "radius"

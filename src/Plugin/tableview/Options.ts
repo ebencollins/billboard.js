@@ -101,7 +101,18 @@ export default class Options {
 			 * @example
 			 *   legendToggleUpdate: false
 			 */
-			updateOnToggle: true
+			updateOnToggle: true,
+
+			/**
+			 * Set how null value to be shown.
+			 * @name nullString
+			 * @memberof plugin-tableview
+			 * @type {string}
+			 * @default "-"
+			 * @example
+			 *   nullString: "N/A"
+			 */
+			nullString: "-"
 		};
 	}
 }

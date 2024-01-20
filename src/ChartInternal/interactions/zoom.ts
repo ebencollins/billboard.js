@@ -116,6 +116,9 @@ export default {
 				// copy current initial x scale in case of rescale option is used
 				!org.xScale && (org.xScale = scale.x.copy());
 				scale.x.domain(domain);
+			} else if (org.xScale) {
+				scale.x.domain(org.xScale.domain());
+				org.xScale = null;
 			}
 		};
 
@@ -286,6 +289,31 @@ export default {
 	},
 
 	/**
+	 * Set zoom transform to event rect
+	 * @param {Function} x x Axis scale function
+	 * @param {Array} domain Domain value to be set
+	 * @private
+	 */
+	updateCurrentZoomTransform(x, domain: [number, number]): void {
+		const $$ = this;
+		const {$el: {eventRect}, config} = $$;
+		const isRotated = config.axis_rotated;
+
+		// Get transform from given domain value
+		// https://github.com/d3/d3-zoom/issues/57#issuecomment-246434951
+		const translate = [-x(domain[0]), 0];
+		const transform = d3ZoomIdentity
+			.scale(x.range()[1] / (
+				x(domain[1]) - x(domain[0])
+			))
+			.translate(
+				...(isRotated ? translate.reverse() : translate) as [number, number]
+			);
+
+		eventRect.call($$.zoom.transform, transform);
+	},
+
+	/**
 	 * Attach zoom event on <rect>
 	 * @private
 	 */
@@ -298,8 +326,7 @@ export default {
 		// Applying the workaround: https://github.com/d3/d3-zoom/issues/231#issuecomment-802305692
 		$$.$el.svg.on("wheel", () => {});
 
-		eventRect
-			.call(behaviour)
+		eventRect?.call(behaviour)
 			.on("dblclick.zoom", null);
 	},
 

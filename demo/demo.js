@@ -1663,11 +1663,10 @@ var demos = {
 					x: {
 						type: "category",
 						tick: {
-							rotate: 75,
+							rotate: -70,
 							multiline: false,
 							tooltip: true
-						},
-						height: 130
+						}
 					}
 				}
 			}
@@ -1868,6 +1867,103 @@ var demos = {
 				}
 			}
 		},
+		XAxisTickInner: [
+			{
+				options: {
+					data: {
+						x: "x",
+						xFormat: "%Y",
+						columns: [
+							["x", "2020", "2021", "2022", "2023", "2024"],
+							["data1", 30, 200, 100, 400, 150],
+							["data2", 130, 340, 200, 500, 250]
+						],
+						type: "line"
+				  },
+				  axis: {
+					x: {
+						type: "timeseries",
+						tick: {
+							format: "%Y-%m-%d %H:%M:%S"
+						}
+					}, 
+					y: {
+						show: false
+					}
+				  }
+				}
+			},
+			{
+				options: {
+					title: {
+						text: "axis.x.tick.text.inner = true",
+						padding: {
+							top: 20
+						}
+					},
+					data: {
+						x: "x",
+						xFormat: "%Y",
+						columns: [
+							["x", "2020", "2021", "2022", "2023", "2024"],
+							["data1", 30, 200, 100, 400, 150],
+							["data2", 130, 340, 200, 500, 250]
+						],
+						type: "line"
+				  },
+				  axis: {
+					x: {
+						type: "timeseries",
+						tick: {
+							text: {
+								inner: true
+							},
+							format: "%Y-%m-%d %H:%M:%S"
+						}
+					}, 
+					y: {
+						show: false
+					}
+				  }
+				}
+			},
+			{
+				options: {
+					title: {
+						text: "axis.x.tick.text.inner.last = true",
+						padding: {
+							top: 20
+						}
+					},
+					data: {
+						x: "x",
+						xFormat: "%Y",
+						columns: [
+							["x", "2020", "2021", "2022", "2023", "2024"],
+							["data1", 30, 200, 100, 400, 150],
+							["data2", 130, 340, 200, 500, 250]
+						],
+						type: "line"
+				  },
+				  axis: {
+					x: {
+						type: "timeseries",
+						tick: {
+							text: {
+								inner: {
+									last: true
+								}
+							},
+							format: "%Y-%m-%d %H:%M:%S"
+						}
+					}, 
+					y: {
+						show: false
+					}
+				  }
+				}
+			}
+		],
 		XAxisTickMultiline: {
 			options: {
 				data: {
@@ -3194,6 +3290,28 @@ d3.select(".chart_area")
 				}
 			}
 		},
+		LegendFormat: {
+			description: "Stay hovering on each of legend items to see full data name text.",
+			options: {
+				data: {
+					columns: [
+						["SELECT idx, title, date, count from TEST_TABLE WHERE idx=5", 2, 3, 5],
+						["very long long data name needed to be", 1, 2, 2],
+					],
+					type: "line"
+				},
+				legend: {
+					format: function(id) {
+						if (id.length > 5) {
+							id = id.substr(0, 5) + "...";
+						}
+			
+						return id;
+					},
+					tooltip: true
+				}
+			}
+		},
 		LegendItemInteraction: [
 			{
 				description: "<b>Single click + AltKey(Win)/optionKey(Mac)</b><br>or <b>Double click</b> legend item to show/hide data series",
@@ -4284,6 +4402,103 @@ d3.select(".chart_area")
 				}
 			}
 		},
+		TooltipPosition: [
+			{
+				options: {
+					data: {
+						columns: [
+							["data1", 30, 200, 200, 400, 150, 250]
+						],
+						type: "area"
+					},
+					padding: {
+						top: 35
+					},
+					axis: {
+						x: {
+							padding: {
+								left: 15,
+								right: 15,
+								unit: "px"
+							}
+						},
+						y2: {
+							show: true
+						}
+					},
+					tooltip: {
+						position: function(data, width, height, element, pos) {
+						  // when has single dataseries, 'pos.yAxis' is number value
+						  return {
+							top: pos.yAxis - (height + 10),
+							left: pos.xAxis - (width / 2)
+						  };
+						}
+					}
+				}
+			},
+			{
+				options: {
+					data: {
+						columns: [
+							["data1", 30, 200, 200, 400, 150, 250],
+							["data2", 130, 100, 100, 200, 150, 50],
+							["data3", 230, 200, 200, 300, 250, 250]
+						],
+						type: "bar",
+						groups: [
+						  ["data1", "data2", "data3"]
+						]
+					},
+					axis: {
+						rotated: false,
+						y2: {
+							show: true
+						}
+					},
+					tooltip: {
+						position: function(data, width, height, element, pos) {
+						  const total = data.reduce((a, {value}) => a + value, 0);
+					
+						  // when has multiple dataseries, 'pos.yAxis' is function
+						  return this.config("axis.rotated") ? {
+							top: pos.xAxis - (width / 2),
+							left: pos.yAxis(total)
+						  } : {
+							top: pos.yAxis(total) - height,
+							left: pos.xAxis - (width / 2)
+						  };
+						}
+					}
+				}
+			},
+			{
+				options: {
+					data: {
+						columns: [
+							["data1", 30, 200, 200, 400, 150, 250]
+						],
+						type: "bar"
+					},
+					padding: {
+						right: 80
+					},
+					axis: {
+						rotated: true
+					},
+					tooltip: {
+						position: function(data, width, height, element, pos) {
+						  const total = data.reduce((a, {value}) => a + value, 0);
+					
+						  return {
+							top: pos.xAxis - (height / 2),
+							left: pos.yAxis + 10
+						  }
+						}
+					}
+				}
+			}
+		],
 		TooltipTemplate: {
 			options: {
 				data: {

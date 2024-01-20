@@ -11,7 +11,7 @@ import {
 	namespaces as d3Namespaces
 } from "d3-selection";
 import util from "../assets/util";
-import {$SHAPE, $TOOLTIP} from "../../src/config/classes";
+import {$CIRCLE, $SHAPE, $TOOLTIP} from "../../src/config/classes";
 import {isNumber, isUndefined, isString} from "../../src/module/util";
 
 describe("TOOLTIP", function() {
@@ -312,8 +312,7 @@ describe("TOOLTIP", function() {
 
 		describe("do not overlap data point", () => {
 			it("should show tooltip on proper position", () => {
-				const tooltip = chart.$.tooltip;
-				const circles = chart.$.circles;
+				const {circles, tooltip} = chart.$;
 				const getCircleRectX = x => circles.filter(`.${$SHAPE.shape}-${x}`)
 					.node().getBoundingClientRect().x;
 
@@ -668,6 +667,371 @@ describe("TOOLTIP", function() {
 
 		});
 
+		describe("with padding", () => {
+			before(() => {
+				args = {
+					data: {
+						columns: [
+							["data1", 30, 200, 100, 400, 150, 250],
+							["data2", 130, 340, 200, 500, 250, 350]
+						],
+						type: "line"
+					},
+					padding: {
+						left: 400
+					},
+					axis: {
+						rotated: false,
+						y: {
+							label: "y axis label"
+						}
+					}
+				}
+			});
+
+			it("should displayed in correct position with padding.left", () => {
+				const x = 4;
+
+				// when
+				chart.tooltip.show({x});
+
+				const tooltip = chart.$.tooltip.node().getBoundingClientRect();
+				const pointLeft = chart.$.circles.filter(`.${$CIRCLE.circle}-${x}`).node().getBoundingClientRect().left;
+
+				expect(tooltip.left + tooltip.width).to.be.below(pointLeft);
+				expect(tooltip.left + tooltip.width).to.be.closeTo(pointLeft, 15);
+			});
+
+			it("set options: axis.y.label", () => {
+				args.axis.y.label = {
+					text: "y axis label"
+				};
+			});
+
+			it("should displayed in correct position with padding.left", () => {
+				const x = 4;
+
+				// when
+				chart.tooltip.show({x});
+
+				const tooltip = chart.$.tooltip.node().getBoundingClientRect();
+				const pointLeft = chart.$.circles.filter(`.${$CIRCLE.circle}-${x}`).node().getBoundingClientRect().left;
+
+				expect(tooltip.left + tooltip.width).to.be.below(pointLeft);
+				expect(tooltip.left + tooltip.width).to.be.closeTo(pointLeft, 15);
+			});
+
+			it("set options: axis.y.label", () => {
+				args.axis.y.label = {
+					text: "y axis label",
+					position: "inner-middle"
+				};
+			});
+
+			it("should displayed in correct position with padding.left", () => {
+				const x = 4;
+
+				// when
+				chart.tooltip.show({x});
+
+				const tooltip = chart.$.tooltip.node().getBoundingClientRect();
+				const pointLeft = chart.$.circles.filter(`.${$CIRCLE.circle}-${x}`).node().getBoundingClientRect().left;
+
+				expect(tooltip.left + tooltip.width).to.be.below(pointLeft);
+				expect(tooltip.left + tooltip.width).to.be.closeTo(pointLeft, 15);
+			});
+
+			it("set options: axis.rotated=true", () => {
+				args.axis.rotated = true;
+			});
+
+			it("should displayed in correct position with padding.left on rotated axis", () => {
+				const x = 2;
+
+				// when
+				util.hoverChart(chart, "mousemove", {clientX: 0, clientY: 200});
+
+				const tooltip = chart.$.tooltip.node().getBoundingClientRect();
+				const pointLeft = chart.$.circles.filter(`.${$CIRCLE.circle}-${x}`).node().getBoundingClientRect().left;
+
+				expect(pointLeft).to.be.below(tooltip.left + tooltip.width);
+				expect(tooltip.left).to.be.closeTo(pointLeft, 30);
+			});
+
+			it("set options: axis.rotated=true", () => {
+				args.axis.rotated = false;
+				args.padding = {
+					top: 100
+				};
+			});
+
+			it("should displayed in correct position with padding.top", () => {
+				const x = 3;
+
+				// when
+				chart.tooltip.show({x});
+
+				const tooltip = chart.$.tooltip.node().getBoundingClientRect();
+				const pointTop = chart.$.circles.filter(`.${$CIRCLE.circle}-${x}`).node().getBoundingClientRect().top;
+
+				expect(tooltip.top).to.be.below(pointTop);
+				expect(tooltip.top + tooltip.height).to.be.closeTo(pointTop, 30);
+			});
+
+			it("set options: axis.rotated=true", () => {
+				args.axis.rotated = true;
+			});
+
+			it("should displayed in correct position with padding.top on rotated axis", () => {
+				const x = 2;
+
+				// when
+				util.hoverChart(chart, "mousemove", {clientX: 0, clientY: 250});
+
+				const tooltip = chart.$.tooltip.node().getBoundingClientRect();
+				const pointTop = chart.$.circles.filter(`.${$CIRCLE.circle}-${x}`).node().getBoundingClientRect().top;
+
+				expect(pointTop).to.be.below(tooltip.top + tooltip.height);
+				expect(tooltip.top).to.be.closeTo(pointTop, 30);
+			});
+		});
+
+		describe("when document or container element is scrolled", () => {
+			before(() => {
+				args = {
+					size: {
+						width: 640,
+						height: 480
+					},
+					data: {
+						columns: [
+							["data1", 30, 200, 100, 400, 150, 250],
+							["data2", 10, 190, 95, 40, 15, 25]
+						]
+					},
+					axis: {
+						rotated: false
+					}
+				};
+			});
+	
+			it("tooltip correctly showed?", function(done) {
+				chart.$.chart.attr("style", "position: relative; top: 0px; left: 0px; width:300px;height:400px;overflow:scroll;");
+	
+				const top = chart.$.chart.node().getBoundingClientRect().top;
+				const {tooltip} = chart.$;
+				const index = [];
+	
+				new Promise(resolve => {
+					util.hoverChart(chart, "mousemove", {
+						clientX: 50,
+						clientY: top + 50
+					});
+	
+					index.push(+tooltip.select("th").text());
+	
+					setTimeout(() => {
+						chart.$.chart.node().scrollTo(500, 0);
+						resolve();
+					}, 300);
+				}).then(() => {
+					new Promise(resolve => {
+						util.hoverChart(chart, "mousemove", {
+							clientX: 200,
+							clientY: top + 50
+						});
+	
+						setTimeout(resolve, 300);
+					});
+				}).then(() => {
+					index.push(+tooltip.select("th").text());
+	
+					expect(index).to.be.deep.equal([0, 5]);
+	
+					chart.$.chart.node().scrollTo(0, 0);
+					done();
+				});
+			});
+	
+			it("set option: axis.rotated=true", () => {
+				args.size = {
+					width: 480,
+					height: 640
+				};
+	
+				args.axis.rotated = true;
+			});
+	
+			it("tooltip correctly showed on rotated axis?", function(done) {
+				chart.$.chart.attr("style", "position: relative; top: 0px; left: 0px; width:480px;height:640px;overflow:scroll;");
+				const {tooltip} = chart.$;
+				const index = [];
+	
+				new Promise(resolve => {
+					util.hoverChart(chart, "mousemove", {
+						clientX: 100,
+						clientY: 50
+					});
+	
+					index.push(+tooltip.select("th").text());
+	
+					setTimeout(() => {
+						chart.$.chart.node().scrollTo(0, 500);
+						resolve();
+					}, 300);
+				}).then(() => {
+					new Promise(resolve => {
+						util.hoverChart(chart, "mousemove", {
+							clientX: 100,
+							clientY: 550
+						});
+	
+						setTimeout(resolve, 300);
+					});
+				}).then(() => {
+					index.push(+tooltip.select("th").text());
+	
+					expect(index).to.be.deep.equal([0, 5]);
+	
+					chart.$.chart.attr("style", "position: relative; top: 0px; left: 0px; width:640px;height:480px;");
+	
+					done();
+				});
+			});
+		});
+
+		describe("check interference", () => {
+			before(() => {
+				args = {
+					data: {
+						x: "x",
+						columns: [
+							["x", "Data A", "Data B", "Data C", "Data D", "Data E"],
+							["data1", 330, 350, 200, 380, 150],
+							["data2", 130, 100, 30, 200, 80],
+							["data3", 230, 153, 85, 300, 250]
+						],
+						type: "radar"
+					},
+					radar: {
+						direction: {
+							clockwise: true
+						}
+					}
+				};
+			});
+
+			const checkPos = (tooltip, expected) => {
+				const left = util.parseNum(tooltip.style("left"));
+				const top = util.parseNum(tooltip.style("top"));
+
+				[top, left].forEach((v, i) => {
+					expect(v).to.be.closeTo(expected[i], 2);
+				});
+			};
+
+			it("check radar's tooltip position.", () => {
+				const {$: {tooltip}} = chart;
+
+				// when
+				chart.tooltip.show({x:0});
+				checkPos(tooltip, [24, 335]);
+
+				// when
+				chart.tooltip.show({x:1});
+				checkPos(tooltip, [175, 469]);
+
+				// when
+				chart.tooltip.show({x:2});
+				checkPos(tooltip, [300, 481]);
+
+				// when
+				chart.tooltip.show({x:3});
+				checkPos(tooltip, [300, 68]);
+
+				// when
+				chart.tooltip.show({x:4});
+				checkPos(tooltip, [175, 0]);
+			});
+
+			it("set options: data.type='pie'", () => {
+				args = {
+					data: {
+						columns: [
+							["data1", 30],
+							["data2", 120]
+						],
+						type: "pie",
+					},
+					legend: {
+						show: false
+					},
+					transition: {
+						duration: 0
+					}
+				};
+			});
+
+			it("check pie's tooltip position.", done => {
+				const {$: {arc, tooltip}} = chart;
+				const path = arc.select(".bb-shapes-data2 path").node();
+				
+				setTimeout(() => {
+					util.hoverChart(chart, "mousemove", {clientX: 250, clientY: 170}, path);
+					checkPos(tooltip, [198.5, 249.5]);
+
+					util.hoverChart(chart, "mousemove", {clientX: 630, clientY: 470}, path);
+					checkPos(tooltip, [445.5, 524.5]);
+
+					done();
+				}, 300)
+			});
+
+			it("set options: data.type='treemap'", () => {
+				args = {
+					data: {
+						columns: [
+							["data1", 1300],
+							["data2", 200],
+							["data3", 500],
+							["data4", 50],
+							["data5", 100],
+							["data6", 70],
+							["data7", 200],
+							["data8", 133],
+							["data9", 220],
+							["data10", 15]
+						],
+						type: "treemap",
+						labels: {
+							colors: "#fff"
+						}
+					},
+					treemap: {
+						label: {
+							threshold: 0.03
+						}
+					}
+				};
+			});
+
+			it("check treemap's tooltip position.", () => {
+				const {$: {tooltip}, internal: {$el: {treemap}}} = chart;
+
+				chart.tooltip.show({
+					data: {
+						id: "data1"
+					}
+				  });
+
+				util.hoverChart(chart, "mousemove", {clientX: 100, clientY: 170}, treemap.node());
+				checkPos(tooltip, [198, 100]);
+
+				util.hoverChart(chart, "mousemove", {clientX: 100, clientY: 470}, treemap.node());
+				checkPos(tooltip, [442, 100]);
+			});
+		});
+
 		describe("on rotated axis", () => {
 			before(() => {
 				args = {
@@ -718,7 +1082,7 @@ describe("TOOLTIP", function() {
 
 				// check for tooltip position to not overflow the chart
 				expect(tooltipLeft).to.be.lessThanOrEqual(state.width);				
-			});
+			});			
 		});
 
 		describe("Narrow width container's tooltip position", () => {
@@ -727,7 +1091,7 @@ describe("TOOLTIP", function() {
 			before(() => {
 				args = {
 					"transition":{
-						"duration":0
+						"duration": 0
 					  },
 					  "axis":{
 						"x":{
@@ -838,10 +1202,40 @@ describe("TOOLTIP", function() {
 		});
 
 		it("set option tooltip.position", () => {
+			args.data.axes = {
+				data3: "y2"
+			};
+			args.axis = {
+				y2: {
+					show: true
+				}
+			}
+
 			args.tooltip.position = function(data, width, height, element, pos) {
+				const {scale: {y, y2}, state: {margin}} = this.internal;
+
 				expect(pos.x).to.be.equal(99.5);
 				expect(pos.y).to.be.equal(100.5);
-				expect(pos.xAxis).to.be.equal(this.internal.scale.x(data[0].x));
+
+				expect(pos.xAxis).to.be.equal(
+					this.internal.scale.x(data[0].x) + margin.left
+				);
+
+				data.forEach(({id, value}) => {
+					const isY2 = id === "data3";
+					const scale = isY2 ? y2 : y;
+
+					expect(pos.yAxis(value, id)).to.be.equal(
+						scale(value) + this.internal.state.margin.top
+					);
+
+					if (isY2) {
+						expect(y2(value) + margin.top).to.be.equal(pos.yAxis(value, null, "y2"));
+					} else {
+						expect(y(value) + margin.top).to.be.equal(pos.yAxis(value, null, "y"));
+					}
+					
+				})
 
 				return {
 					top: 50, left: 300
@@ -866,6 +1260,10 @@ describe("TOOLTIP", function() {
 				done();
 			}, 200);
 		});
+
+		it("", () => {
+
+		})
 	});
 
 	describe("tooltip order", () => {
@@ -1725,7 +2123,7 @@ describe("TOOLTIP", function() {
 			chart.$.chart.style("margin-top", "100px");
 			chart.tooltip.show({index:1});
 
-			expect(chart.$.tooltip.select("th").text()).to.be.equal("0");
+			expect(chart.$.tooltip.select("th").text()).to.be.equal("1");
 
 			chart.$.chart.style("margin-top", null);
 		});
@@ -1791,7 +2189,7 @@ describe("TOOLTIP", function() {
 			util.hoverChart(chart, "mousemove", {clientX: 180, clientY: 130});
 
 			expect(chart.$.tooltip.select(".value").html())
-				.to.be.equal("1300 ~ 1339");
+				.to.be.equal("1300~1339");
 		});
 	});
 
@@ -1918,13 +2316,12 @@ describe("TOOLTIP", function() {
 			// when
 			chart.tooltip.show({x: 1});
 
-			expect(spy.callCount).to.be.equal(2);
-
+			expect(spy.callCount).to.be.equal(1);
 			expect(spy.args.every(v => v.length === 4)).to.be.true;
 			expect(spy.args.every(v => {
 				const [value, ratio, id, index]= v;
 
-				return isNumber(value) && isUndefined(ratio) && isString(id) && isNumber(index);
+				return Array.isArray(value) && isUndefined(ratio) && isString(id) && isNumber(index);
 			})).to.be.true;
 
 			spy.resetHistory();

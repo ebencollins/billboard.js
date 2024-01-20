@@ -198,9 +198,9 @@ export default {
 
 				value = `<b>Open:</b> ${open} <b>High:</b> ${high} <b>Low:</b> ${low} <b>Close:</b> ${close}${volume ? ` <b>Volume:</b> ${volume}` : ""}`;
 			} else if ($$.isBarRangeType(row)) {
-				const {value: [start, end], id, index} = row;
+				const {value: rangeValue, id, index} = row;
 
-				value = `${valueFormat(start, undefined, id, index)} ~ ${valueFormat(end, undefined, id, index)}`;
+				value = `${valueFormat(rangeValue, undefined, id, index)}`;
 			} else {
 				value = valueFormat(getRowValue(row), ...param);
 			}
@@ -259,25 +259,45 @@ export default {
 	 * @param {SVGElement} eventTarget Event element
 	 * @private
 	 */
-	setTooltipPosition(dataToShow: IDataRow, eventTarget: SVGElement): void {
+	setTooltipPosition(dataToShow: IDataRow[], eventTarget: SVGElement): void {
 		const $$ = this;
 		const {config, scale, state, $el: {eventRect, tooltip}} = $$;
 		const {bindto} = config.tooltip_contents;
+		const isRotated = config.axis_rotated;
 		const datum = tooltip?.datum();
 
 		if (!bindto && datum) {
+			const data = dataToShow ?? JSON.parse(datum.current);
 			const [x, y] = getPointer(state.event, eventTarget ?? eventRect?.node()); // get mouse event position
-			const currPos: {x: number, y: number, xAxis?: number} = {x, y};
+			const currPos: {
+				x: number, y: number, xAxis?: number, yAxis?: number | (
+					(value: number, id?: string, axisId?: string) => number
+				)} = {x, y};
 
-			if (scale.x && datum && "x" in datum) {
-				currPos.xAxis = scale.x(datum.x);
+			if (state.hasAxis && scale.x && datum && "x" in datum) {
+				const getYPos = (value = 0, id?: string, axisId = "y"): number => {
+					const scaleFn = scale[id ? $$.axis?.getId(id) : axisId];
+
+					return scaleFn ? scaleFn(value) + (isRotated ? state.margin.left : state.margin.top) : 0;
+				};
+
+				currPos.xAxis = scale.x(datum.x) + (
+					// add margin only when user specified tooltip.position function
+					config.tooltip_position ? (isRotated ? state.margin.top : state.margin.left) : 0
+				);
+
+				if (data.length === 1) {
+					currPos.yAxis = getYPos(data[0].value as number, data[0].id);
+				} else {
+					currPos.yAxis = getYPos;
+				}
 			}
 
 			const {width = 0, height = 0} = datum;
 
 			// Get tooltip position
 			const pos = config.tooltip_position?.bind($$.api)(
-				dataToShow ?? JSON.parse(datum.current),
+				data,
 				width, height, eventRect?.node(), currPos
 			) ?? $$.getTooltipPosition.bind($$)(width, height, currPos);
 
@@ -309,41 +329,52 @@ export default {
 		const {width, height, current, isLegendRight, inputType} = state;
 		const hasGauge = $$.hasType("gauge") && !config.gauge_fullCircle;
 		const hasTreemap = state.hasTreemap;
+		const hasRadar = state.hasRadar;
 		const isRotated = config.axis_rotated;
+		const hasArcType = $$.hasArcType();
 		const svgLeft = $$.getSvgLeft(true);
-		let chartRight = svgLeft + current.width - $$.getCurrentPaddingRight();
-		const chartLeft = $$.getCurrentPaddingLeft(true);
+		let chartRight = svgLeft + current.width - $$.getCurrentPaddingByDirection("right");
 		const size = 20;
 		let {x, y} = currPos;
 
 		// Determine tooltip position
-		if ($$.hasArcType()) {
-			const raw = inputType === "touch" || $$.hasType("radar");
+		if (hasRadar) {
+			x += x >= (width / 2) ? 15 : -(tWidth + 15);
+			y += 15;
+		} else if (hasArcType) {
+			const raw = inputType === "touch";
 
 			if (!raw) {
-				y += hasGauge ? height : height / 2;
 				x += (width - (isLegendRight ? $$.getLegendWidth() : 0)) / 2;
+				y += hasGauge ? height : (height / 2) + tHeight;
 			}
-		} else if (!hasTreemap) {
+		} else if (hasTreemap) {
+			y += tHeight;
+		} else {
+			const padding = {
+				top: $$.getCurrentPaddingByDirection("top", true),
+				left: $$.getCurrentPaddingByDirection("left", true)
+			};
+
 			if (isRotated) {
-				y = currPos.xAxis + size;
-				x += svgLeft;
+				x += svgLeft + padding.left + size;
+				y = padding.top + currPos.xAxis + size;
 				chartRight -= svgLeft;
 			} else {
-				y -= 5;
-				x = svgLeft + chartLeft + size + (scale.zoom ? x : currPos.xAxis);
+				x = svgLeft + padding.left + size + (scale.zoom ? x : currPos.xAxis);
+				y += padding.top - 5;
 			}
 		}
 
 		// when tooltip left + tWidth > chart's width
 		if ((x + tWidth + 15) > chartRight) {
-			x -= isRotated ? tWidth - chartLeft : tWidth + (hasTreemap ? 0 : chartLeft);
+			x -= tWidth + (hasTreemap || hasArcType ? 0 : (isRotated ? size * 2 : 38));
 		}
 
 		if (y + tHeight > current.height) {
-			const gap = hasTreemap ? 0 : 30;
+			const gap = hasTreemap ? tHeight + 10 : 30;
 
-			y -= hasGauge ? tHeight * 3 : tHeight + gap;
+			y -= hasGauge ? tHeight * 1.5 : tHeight + gap;
 		}
 
 		const pos = {top: y, left: x};
